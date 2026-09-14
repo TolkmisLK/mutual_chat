@@ -2,6 +2,20 @@
 
 Development preview. This is not a public deployment or native-device acceptance.
 
+## Embedded host navigation and lifecycle
+
+[PR #3 CI](https://github.com/TolkmisLK/mutual_chat/actions/runs/34811896034), candidate `434a7d756503431fe77476a1fc0cf09a6695e8eb`: `check` and `integration` passed. Six unit tests and all three production outputs (widget, standalone, host example) passed. The widget copied into the host output was also compared locally byte for byte with the standalone ES module; public exports are `ChatSession` and `mountChat`.
+
+All three Chromium scenarios passed in 41.1 seconds:
+
+- Real embedded host (2.8 seconds): shared and panel-owned session modes each repeatedly mounted/unmounted, returned SDK listener counts to baseline and removed panel subscriptions. In each mode a real encrypted request was held until after navigation away, then delivered exactly once and displayed after remount. The server stored two encrypted events in total. The original user/device/token remained active throughout navigation; only explicit host logout invalidated the token. No browser page errors occurred.
+- Controlled adapter teardown (178 ms): stale controls and callbacks after unmount could not trigger another send or change the detached draft; repeated unmount was harmless and left the host-owned adapter intact. This case tests component lifecycle, not cryptography.
+- Existing real two-user scenario (35.1 seconds): invitation, encrypted delivery, server restart and snapshot recovery passed again. It now sends and receives another message after the snapshot rehearsal restores the source server before taking screenshots.
+
+Artifact `10334484902` was downloaded. The embedded host screenshot and the updated phone-viewport conversation were inspected: host navigation and its separate style remain intact, both delayed messages appear once, and the phone composer is ready after restored communication. These are actual Chromium renders with generated fixture identities, not native-phone captures.
+
+The integration example is documented in [EMBEDDING.md](EMBEDDING.md). Unsent drafts and selected-room state reset on unmount. Secure session restoration, device verification and key recovery are still separate unfinished work.
+
 ## Real server/browser interoperability
 
 [PR #2 candidate CI](https://github.com/TolkmisLK/mutual_chat/actions/runs/34794508200), commit `cc6a25c5fd923e7fc2c20a2a73147b5091574935`: both `check` and `integration` jobs passed.
@@ -43,4 +57,4 @@ See [LOCAL-SERVER.md](LOCAL-SERVER.md) for configuration, storage and private ba
 
 ## Unfinished launch gates
 
-Device verification and cross-signing; session restoration and secure local storage; key backup/lost-device recovery; embedded-host interaction and authentication ownership tests; real attachments/pagination/unread controls; PostgreSQL + trusted TLS staging deployment and its backup restoration; desktop/mobile native builds and physical-device lifecycle tests. No stable release has been published.
+Device verification and cross-signing; session restoration and secure local storage; key backup/lost-device recovery; real attachments/pagination/unread controls; PostgreSQL + trusted TLS staging deployment and its backup restoration; desktop/mobile native builds and physical-device lifecycle tests. Embedded-host interaction and authentication ownership now have the real-browser evidence above. No stable release has been published.

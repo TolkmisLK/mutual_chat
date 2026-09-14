@@ -52,4 +52,4 @@ panel.unmount();
 
 ## 验证与下一步
 
-5 项受控 SDK 核心测试与两种生产构建通过。另有独立的真实 Synapse + Chromium 集成测试，验证双用户邀请、双向加密文字收发、服务重启后的重连和服务端密文历史；实际桌面/手机视口截图已审阅。结果与边界见 [VALIDATION.md](docs/VALIDATION.md)，后续验收见 [ROADMAP.md](docs/ROADMAP.md)。
+6 项单元测试与三种生产构建通过。3 项 Chromium 场景覆盖真实 Synapse 双用户加密通信与备份恢复、嵌入宿主切页时保留登录和发送、卸载后的异步回调处理；实际宿主、桌面和手机视口截图已审阅。结果与边界见 [VALIDATION.md](docs/VALIDATION.md)，后续验收见 [ROADMAP.md](docs/ROADMAP.md)。

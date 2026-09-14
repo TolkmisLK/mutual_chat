@@ -12,7 +12,7 @@ Reference: [Matrix SDK documentation](https://matrix-org.github.io/matrix-js-sdk
 2. Durable session restoration, cross-signing, device verification and key-backup/recovery UI. Test lost-device and forgotten-password paths. Gate public launch on these features.
 3. Two-user encrypted message interoperability, invites, reconnect, duplicate-send behavior, redaction, pagination, unread counts, search and safe authenticated media.
 4. Standalone desktop package and mobile app wrapper with secure token storage, lifecycle handling and notification permissions. Never embed tokens in builds or source code.
-5. An integration example in a separate host app demonstrating mount/unmount, shared sessions, host navigation, theme and authentication ownership.
+5. A separate host example consumes the built module; real-browser mount/unmount, shared sessions, pending encrypted sends, host navigation and authentication ownership passed (see EMBEDDING.md and VALIDATION.md). Next: retained drafts and framework-specific adapters as needed.
 6. Contact/block/report controls and server-side access restrictions appropriate to an invite-only initial deployment. Voice/video calls and Telegram protocol interoperability are not initial release requirements.
 
 ## Release gates
