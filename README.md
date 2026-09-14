@@ -52,4 +52,4 @@ panel.unmount();
 
 ## 验证与下一步
 
-现有 3 项 Chromium 场景覆盖真实 Synapse 双用户加密通信与备份恢复、嵌入宿主切页时保留登录和发送、卸载后的异步回调处理，截图已审阅。新增本机会话恢复后 10 项本地单元测试通过，新增的 2 项真实浏览器恢复场景待 CI 执行，不能视为已验收。结果与边界见 [VALIDATION.md](docs/VALIDATION.md)，后续验收见 [ROADMAP.md](docs/ROADMAP.md)。
+10 项单元测试、三种生产构建和 5 项 Chromium 场景通过：真实 Synapse 双用户加密通信与服务备份恢复、嵌入宿主生命周期、同设备会话恢复与历史解密、多窗口锁定交接和失效登录处理。实际桌面和手机视口截图已审阅。结果与边界见 [VALIDATION.md](docs/VALIDATION.md)，后续验收见 [ROADMAP.md](docs/ROADMAP.md)。

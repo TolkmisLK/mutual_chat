@@ -2,9 +2,15 @@
 
 Development preview. This is not a public deployment or native-device acceptance.
 
-## Local session restoration — candidate awaiting browser CI
+## Encrypted local session restoration
 
-The standalone shell now offers temporary memory-only login and opt-in encrypted local session storage. Four additional real Web Crypto unit tests passed locally (10 total). Five browser scenarios are discovered, including two new real-server restoration/revocation cases; they have not yet been executed for this candidate. Previous browser evidence below applies to the previous revision, not automatically to this storage change. See [SESSION-SECURITY.md](SESSION-SECURITY.md) for the format, scope and deletion limitations.
+[PR #4 CI](https://github.com/TolkmisLK/mutual_chat/actions/runs/34817824421), candidate `e8a8ca0d3b1206bf63298673962909a6d2b3b2eb`: both jobs passed. Ten unit tests, all three builds and all five Chromium scenarios passed (browser suite 42.8 seconds). The standalone shell now offers temporary memory-only login and opt-in encrypted local session storage.
+
+- Same-device restoration (3.1 seconds): a generated account sends an encrypted message, reloads, rejects a wrong local passphrase without changing the vault, unlocks with the original device ID, and decrypts the earlier message. Only the original login request occurs. A competing window cannot initialize until the first locks; after ownership transfers, the second window decrypts history and sends another encrypted message. Explicit logout removes the vault and the original server token returns 401.
+- Revoked token (1.3 seconds): after server-side logout, unlocking remains blocked and preserves the encrypted vault rather than silently logging in as a replacement device.
+- The previous real two-user/restart/snapshot scenario and both embedded lifecycle scenarios pass with the new default temporary storage mode.
+
+Artifact `10337501056` was downloaded. Actual restored-session and phone-viewport screenshots were inspected: old and new messages are visible after lock handoff, the original device is identified, and the temporary mobile-viewport conversation remains usable. These are Chromium captures, not physical-device tests. See [SESSION-SECURITY.md](SESSION-SECURITY.md) for the format, threat model and deletion limitations. This does not establish lost-profile recovery or trusted peer verification.
 
 ## Embedded host navigation and lifecycle
 
@@ -61,4 +67,4 @@ See [LOCAL-SERVER.md](LOCAL-SERVER.md) for configuration, storage and private ba
 
 ## Unfinished launch gates
 
-Device verification and cross-signing; session restoration and secure local storage; key backup/lost-device recovery; real attachments/pagination/unread controls; PostgreSQL + trusted TLS staging deployment and its backup restoration; desktop/mobile native builds and physical-device lifecycle tests. Embedded-host interaction and authentication ownership now have the real-browser evidence above. No stable release has been published.
+Device verification and cross-signing; key backup/lost-device recovery; real attachments/pagination/unread controls; PostgreSQL + trusted TLS staging deployment and its backup restoration; desktop/mobile native builds and physical-device lifecycle tests. Local session restoration and embedded-host interaction now have the real-browser evidence above. No stable release has been published.

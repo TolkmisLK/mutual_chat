@@ -9,7 +9,7 @@ Reference: [Matrix SDK documentation](https://matrix-org.github.io/matrix-js-sdk
 ## Next development slices
 
 1. Local reproducible Synapse 1.160.0 deployment, restricted test-account bootstrap, persisted storage and two-user encrypted browser/restart tests passed (see VALIDATION.md). Next: PostgreSQL, trusted TLS and tested backup restoration for staging deployment.
-2. Durable session restoration, cross-signing, device verification and key-backup/recovery UI. Test lost-device and forgotten-password paths. Gate public launch on these features.
+2. Opt-in encrypted local session restoration and same-device history decryption passed real-server browser tests (see SESSION-SECURITY.md and VALIDATION.md). Next: cross-signing, device verification and remote key-backup/recovery UI. Test lost-device and forgotten-recovery-key paths. Gate public launch on these features.
 3. Two-user encrypted message interoperability, invites, reconnect, duplicate-send behavior, redaction, pagination, unread counts, search and safe authenticated media.
 4. Standalone desktop package and mobile app wrapper with secure token storage, lifecycle handling and notification permissions. Never embed tokens in builds or source code.
 5. A separate host example consumes the built module; real-browser mount/unmount, shared sessions, pending encrypted sends, host navigation and authentication ownership passed (see EMBEDDING.md and VALIDATION.md). Next: retained drafts and framework-specific adapters as needed.
