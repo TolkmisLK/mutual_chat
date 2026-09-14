@@ -15,6 +15,8 @@ npm run dev
 
 在浏览器打开终端显示的 localhost 地址，登录一个支持密码登录的 Matrix 服务。远程服务器必须使用 HTTPS；HTTP 仅允许 localhost 开发地址。当前没有公共默认服务，也不会代建外部帐号。建议先使用测试帐号。
 
+本机可复现的 Matrix 服务与真实浏览器集成测试入口见 [LOCAL-SERVER.md](docs/LOCAL-SERVER.md)。需要 Docker Compose，服务只绑定回环地址，默认关闭公开注册；它不是公开部署方案。
+
 ```sh
 npm test
 npm run build
