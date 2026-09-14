@@ -3,3 +3,6 @@ dist/
 .env
 *.log
 coverage/
+deploy/local/data/
+playwright-report/
+test-results/

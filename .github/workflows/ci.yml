@@ -23,3 +23,26 @@ jobs:
           name: mutual-chat-web-and-widget
           path: dist/
           if-no-files-found: error
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npm run server:local
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
+      - run: npm run server:local -- stop
+        if: always()
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mutual-chat-browser-results
+          path: |
+            playwright-report/
+            test-results/

@@ -1,0 +1,11 @@
+services:
+  synapse:
+    image: matrixdotorg/synapse:v1.160.0
+    user: "${SYNAPSE_UID:-991}:${SYNAPSE_GID:-991}"
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${SYNAPSE_PORT:-18008}:8008"
+    volumes:
+      - ${SYNAPSE_DATA_DIR:-./data}:/data
+    environment:
+      SYNAPSE_CONFIG_PATH: /data/homeserver.yaml
