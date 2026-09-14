@@ -22,7 +22,7 @@ npm test
 npm run build
 ```
 
-产物：`dist/app/` 为独立静态 Web 应用；`dist/widget/mutual-chat.js` 为可嵌入界面模块。完整部署必须保留 WASM 与其他 assets 文件。构建通过不等于服务端或真机验收通过。
+产物：`dist/app/` 为独立静态 Web 应用；`dist/widget/mutual-chat.js` 为可嵌入界面模块；`dist/embed-host/` 为带登录和页面切换的宿主示例。完整部署必须保留 WASM 与其他 assets 文件。构建通过不等于服务端或真机验收通过。
 
 ## 嵌入其他应用
 
@@ -37,6 +37,8 @@ panel.unmount();
 ```
 
 容器需有明确高度。UI 使用 Shadow DOM 隔离样式，不替换宿主页面或强制退出宿主帐号。也可传入共享 `ChatSession`：组件卸载时仅移除自己的监听，不销毁外部 session。`packages/chat-core/session.js` 不依赖 UI 框架；SDK 负责同步、事务 ID、发送队列与加密。
+
+运行宿主示例、共享会话用法和卸载行为见 [EMBEDDING.md](docs/EMBEDDING.md)。构建模块同时导出 `mountChat` 和 `ChatSession`。
 
 ## 当前数据边界
 

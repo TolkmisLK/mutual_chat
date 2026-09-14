@@ -60,6 +60,11 @@ test('two users exchange encrypted messages and read history after server restar
         .toEqual(history.chunk.filter(e => e.type === 'm.room.encrypted').map(e => e.event_id).sort());
       expect(JSON.stringify(restored)).not.toContain(first);
     });
+    await expect(bob.getByRole('button', { name: '发送', exact: true })).toBeEnabled();
+    const restoredMessage = '备份演练后继续通信 ' + suffix;
+    await bob.getByRole('textbox', { name: '消息', exact: true }).fill(restoredMessage);
+    await bob.getByRole('button', { name: '发送', exact: true }).click();
+    await expect(alice.getByRole('log')).toContainText(restoredMessage);
     expect(await bob.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     // Device verification, key backup and lost-device recovery remain separate gates.
     await alice.screenshot({ path: info.outputPath('encrypted-desktop.png'), fullPage: true });
