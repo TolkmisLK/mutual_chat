@@ -15,7 +15,17 @@ Development preview. This is not a public deployment or native-device acceptance
 
 Tokens/passwords are never saved in the report. Browser network tracing is disabled to avoid capturing credentials. Screenshots contain only generated fixture accounts and messages. The server test fixture is not deployed to the public Internet.
 
-## Reproduce
+## Local private backup restoration
+
+[Final PR #2 CI](https://github.com/TolkmisLK/mutual_chat/actions/runs/34794923410), candidate `68ba5649b82fdaee1adab10fa0cb8e90d3532115`: both jobs passed, including all 6 unit tests (5 controlled-SDK tests plus 1 real filesystem snapshot-isolation regression) and the extended real-browser scenario.
+
+The scenario stops the source fixture before copying its entire data directory into a newly created private temporary directory. A second independent Compose project starts the copy on loopback port 18009. The original test token can query the same room there, and the restored encrypted message event IDs match the source history. The copied server is removed before deleting only its private fixture copy; the source server is restarted without replacing source files. A regression test confirms editing the copied config does not change the source.
+
+The first attempt failed because an existing temporary root collided with `fs.cp`'s no-overwrite option; the corrected absent child-path layout passed. No test gate was removed. This verifies local SQLite/config/signing-key restoration and retained session/history, **not** PostgreSQL disaster recovery, remote/off-site backups, media-file restoration or client secret-key recovery. No browser trace or copied secret directory is uploaded as an artifact.
+
+Local production-dependency audit on this date (`npm audit --omit=dev --audit-level=high`) reported 0 vulnerabilities. This only reflects known registry advisories for that dependency scope, not a general security certification.
+
+## Reproduce commands
 
 Docker Compose v2, Node 24, and Linux/compatible Docker environment:
 
@@ -33,4 +43,4 @@ See [LOCAL-SERVER.md](LOCAL-SERVER.md) for configuration, storage and private ba
 
 ## Unfinished launch gates
 
-Device verification and cross-signing; session restoration and secure local storage; key backup/lost-device recovery; embedded-host interaction and authentication ownership tests; real attachments/pagination/unread controls; PostgreSQL + trusted TLS staging deployment and tested private backup restoration; desktop/mobile native builds and physical-device lifecycle tests. No stable release has been published.
+Device verification and cross-signing; session restoration and secure local storage; key backup/lost-device recovery; embedded-host interaction and authentication ownership tests; real attachments/pagination/unread controls; PostgreSQL + trusted TLS staging deployment and its backup restoration; desktop/mobile native builds and physical-device lifecycle tests. No stable release has been published.

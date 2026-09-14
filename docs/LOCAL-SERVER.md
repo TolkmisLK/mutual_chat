@@ -30,7 +30,7 @@ The server must already be running. Tests cover private room invitations, bidire
 
 ## Local backup and restoration rehearsal
 
-Stop the server before copying **the entire** data directory, including SQLite, config, media and signing keys. Store that copy privately; it includes secrets. Restore into an empty fixture directory with the same ownership, then restart. Never overwrite a running database or casually delete a real data directory. Automated backup/restore acceptance is still pending.
+Stop the server before copying **the entire** data directory, including SQLite, config, media and signing keys. Store that copy privately; it includes secrets. Restore into an empty fixture directory with the same ownership, then restart. Never overwrite a running database or casually delete a real data directory. The integration test rehearses copying the stopped local fixture into a separate temporary server and checks the restored session/history (passed; see VALIDATION.md). PostgreSQL/off-site recovery and populated media restoration remain pending.
 
 ## Production boundary
 
