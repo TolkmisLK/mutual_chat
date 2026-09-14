@@ -37,3 +37,13 @@ test('timeline is bounded and redacted/encrypted messages do not leak raw conten
   room.getLiveTimeline = () => ({ getEvents: () => Array.from({ length: 250 }, (_, i) => ({ getType: () => 'm.room.encrypted', getId: () => String(i), getSender: () => '@other:example.org', isRedacted: () => i === 249, getContent: () => ({ body: 'hidden plaintext' }), getTs: () => 1 })) });
   const messages = session.messages(room.roomId); assert.equal(messages.length, 200); assert.equal(messages[0].id, '50'); assert.equal(messages.at(-1).text, '[消息已删除]'); assert.equal(messages.some(m => m.text.includes('hidden')), false);
 });
+test('SDK synthetic decryption failure stays a placeholder until keys arrive', () => {
+  const { client, room, session } = fake(); let failed = true; let changes = 0;
+  const event = { getType: () => 'm.room.message', getId: () => '$encrypted', getSender: () => '@other:example.org', isRedacted: () => false, isDecryptionFailure: () => failed, getContent: () => ({ body: failed ? '** Unable to decrypt: internal SDK failure **' : 'Recovered history' }), getTs: () => 1 };
+  room.getLiveTimeline = () => ({ getEvents: () => [event] });
+  session.subscribe(() => changes++);
+  assert.equal(session.messages(room.roomId)[0].text, '[等待解密或缺少密钥]');
+  failed = false; client.emit('Event.decrypted', event);
+  assert.equal(changes, 1); assert.equal(session.messages(room.roomId)[0].text, 'Recovered history');
+  session.dispose();
+});

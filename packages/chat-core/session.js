@@ -17,7 +17,7 @@ export class ChatSession {
     if (!room || room.getMyMembership() !== 'join') return [];
     return room.getLiveTimeline().getEvents().filter(e => ['m.room.message', 'm.room.encrypted'].includes(e.getType())).slice(-200).map(e => ({
       id: e.getId(), sender: e.getSender(), mine: e.getSender() === this.client.getUserId(),
-      text: e.isRedacted() ? '[消息已删除]' : e.getType() === 'm.room.encrypted' ? '[等待解密或缺少密钥]' : typeof e.getContent().body === 'string' ? e.getContent().body : '[暂不支持的消息]',
+      text: e.isRedacted() ? '[消息已删除]' : (e.isDecryptionFailure?.() || e.getType() === 'm.room.encrypted') ? '[等待解密或缺少密钥]' : typeof e.getContent().body === 'string' ? e.getContent().body : '[暂不支持的消息]',
       time: e.getTs(), status: e.status || 'sent',
     }));
   }
