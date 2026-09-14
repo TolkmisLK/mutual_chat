@@ -3,8 +3,12 @@ import { mountChat } from '../packages/chat-ui/index.js';
 import { validateHomeserver } from '../packages/chat-core/session.js';
 import { VAULT_KEY, sealSession, openSession, randomStorageKey, storageKeyBytes } from './session-vault.js';
 
+import { BackupRecovery } from './backup-recovery.js';
+import { mountBackupRecovery } from './backup-recovery-ui.js';
+
 const $ = id => document.getElementById(id);
 let active; let panel; let releaseLock; let current; let remembered = false; let busy = false; let closing = false;
+let recovery; let recoveryPanel;
 function assertOpen() { if (closing) throw new Error('Window closed during initialization'); }
 const say = text => { $('status').textContent = text; };
 function landing() {
@@ -13,7 +17,7 @@ function landing() {
   catch { say('浏览器不允许读取本地存储，请调整设置后重试。'); }
   $('login').hidden = saved; $('unlock').hidden = !saved;
   $('login-panel').hidden = false; $('chat').hidden = true;
-  $('logout').hidden = true; $('lock').hidden = true; $('device').textContent = '';
+  $('logout').hidden = true; $('lock').hidden = true; $('security').hidden = true; $('device').textContent = '';
 }
 async function holdLock() {
   if (!navigator.locks || !crypto.subtle) throw new Error('请通过 HTTPS 或 localhost 使用支持 Web Locks 的浏览器。');
@@ -25,12 +29,15 @@ async function holdLock() {
   });
 }
 function stop() {
+  recoveryPanel?.dispose(); recoveryPanel = null; recovery?.dispose(); recovery = null;
   panel?.unmount(); panel = null; active?.stopClient(); active = null; current = null; remembered = false;
   releaseLock?.(); releaseLock = null;
 }
 async function start(session, persist) {
   current = session; remembered = persist;
-  active = createClient({ baseUrl: session.baseUrl, userId: session.userId, deviceId: session.deviceId, accessToken: session.accessToken });
+  recovery = new BackupRecovery();
+  active = createClient({ baseUrl: session.baseUrl, userId: session.userId, deviceId: session.deviceId, accessToken: session.accessToken, cryptoCallbacks: recovery.callbacks });
+  recovery.bind(active);
   const identity = await active.whoami();
   assertOpen();
   if (identity.user_id !== session.userId || identity.device_id !== session.deviceId) throw new Error('保存的设备身份与服务器不一致。');
@@ -39,14 +46,16 @@ async function start(session, persist) {
   panel = mountChat($('chat'), { client: active });
   await active.startClient({ initialSyncLimit: 30 });
   assertOpen();
+  recoveryPanel = mountBackupRecovery(recovery, setBusy);
 }
 function showChat() {
-  $('login-panel').hidden = true; $('chat').hidden = false; $('logout').hidden = false; $('lock').hidden = !remembered;
+  $('login-panel').hidden = true; $('chat').hidden = false; $('logout').hidden = false; $('lock').hidden = !remembered; $('security').hidden = false;
   $('device').textContent = `${current.userId} · 设备 ${current.deviceId}${remembered ? ' · 已在此浏览器保留' : ' · 临时会话'}`; say('');
 }
 function setBusy(value) {
   busy = value;
-  for (const id of ['connect', 'unlock-button', 'forget', 'logout', 'lock']) $(id).disabled = value;
+  for (const id of ['connect', 'unlock-button', 'forget', 'logout', 'lock', 'security']) $(id).disabled = value;
+  if (!value && closing) stop();
 }
 $('remember').onchange = () => {
   const enabled = $('remember').checked; $('local-passphrase-label').hidden = !enabled; $('local-passphrase').required = enabled;
@@ -99,6 +108,7 @@ $('unlock').onsubmit = async event => {
       error.message?.startsWith('已有') ? error.message : '无法解锁：请核对本机口令、网络和保存的会话是否完整。原会话已保留。');
   } finally { $('unlock-passphrase').value = ''; setBusy(false); }
 };
+$('security').onclick = () => { if (!busy) recoveryPanel?.open(); };
 $('lock').onclick = () => { if (busy) return; stop(); landing(); say('已锁定，输入本机口令可继续使用原设备。'); };
 $('forget').onclick = async () => {
   if (busy || !confirm('忘记保存的登录会导致此浏览器无法恢复原设备密钥。此操作不会退出服务器上的设备，请从其他客户端撤销该设备。仍要忘记？')) return;
@@ -126,7 +136,7 @@ $('logout').onclick = async () => {
   finally { setBusy(false); }
 };
 window.addEventListener('pagehide', () => {
-  closing = true; panel?.unmount(); active?.stopClient();
+  closing = true; panel?.unmount(); recoveryPanel?.dispose(); recovery?.dispose(); active?.stopClient();
   // An in-flight initializer must settle and stop before another live window
   // can acquire this database. Document destruction also releases Web Locks.
   if (!busy) stop();

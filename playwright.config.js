@@ -4,6 +4,7 @@ export default defineConfig({
   reporter: [['list'], ['html', { open: 'never' }]],
   use: { baseURL: 'http://127.0.0.1:14173', browserName: 'chromium', viewport: { width: 1280, height: 900 } },
   webServer: [
+    { command: 'npx vite --host 127.0.0.1 --port 14175 --strictPort', url: 'http://127.0.0.1:14175/e2e/backup-fixture.html', reuseExistingServer: false },
     { command: 'npx vite preview --host 127.0.0.1 --port 14173 --strictPort', url: 'http://127.0.0.1:14173', reuseExistingServer: false },
     { command: 'npx vite preview --config vite.embed.config.js --host 127.0.0.1 --port 14174 --strictPort', url: 'http://127.0.0.1:14174', reuseExistingServer: false },
   ],
