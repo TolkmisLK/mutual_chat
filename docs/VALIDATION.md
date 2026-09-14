@@ -2,6 +2,10 @@
 
 Development preview. This is not a public deployment or native-device acceptance.
 
+## Existing remote backup recovery — candidate pending CI
+
+Added a restore-only controller/UI using official Matrix recovery-key and backup APIs. Five new unit cases and one real-server new-device recovery scenario are awaiting CI. Production code never creates, resets or deletes a backup or cross-signing identity. The fixture helper initializes only a newly generated test account. The local runtime is unavailable, so no local execution or new screenshot inspection is claimed. See [RECOVERY.md](RECOVERY.md).
+
 ## Encrypted local session restoration
 
 [PR #4 CI](https://github.com/TolkmisLK/mutual_chat/actions/runs/34817824421), candidate `e8a8ca0d3b1206bf63298673962909a6d2b3b2eb`: both jobs passed. Ten unit tests, all three builds and all five Chromium scenarios passed (browser suite 42.8 seconds). The standalone shell now offers temporary memory-only login and opt-in encrypted local session storage.
