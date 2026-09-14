@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mutual Chat · 嵌入示例</title><link rel="stylesheet" href="/style.css"></head>
+<body><main><header><strong>工作空间 · 聊天嵌入示例</strong><button id="logout" hidden>退出帐号</button></header>
+<section id="login-panel"><h1>在你的应用中打开聊天</h1><p>登录由宿主管理，切换页面时保留连接。此示例使用测试帐号。</p>
+<form id="login"><label>服务器地址<input id="server" type="url" required placeholder="https://matrix.example.org"></label><label>用户 ID<input id="user" autocomplete="username" required></label><label>密码<input id="password" type="password" autocomplete="current-password" required></label><button id="connect">连接</button></form></section>
+<section id="workspace" hidden><nav><button id="overview">工作台</button><button id="open-chat">打开聊天</button><label>挂载方式<select id="mode"><option value="shared">宿主共享会话</option><option value="owned">组件独立会话</option></select></label></nav>
+<div id="overview-panel"><h1>工作台</h1><p>聊天关闭期间仍可接收消息。再次打开即可继续。</p></div><div id="chat" hidden></div>
+<details><summary>集成诊断</summary><p>仅展示连接及订阅数量，便于检查组件卸载后的状态。</p><output id="diagnostics"></output></details></section>
+<p id="status" role="status"></p></main><script type="module" src="/main.js"></script></body></html>
