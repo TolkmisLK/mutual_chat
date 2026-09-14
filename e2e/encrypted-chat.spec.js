@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { randomBytes } from 'node:crypto';
 import { register } from '../tool/fixture-accounts.js';
 import { base, docker, waitForServer } from '../tool/local-server.js';
+import { checkRestoredSnapshot } from '../tool/fixture-snapshot.js';
 
 test('two users exchange encrypted messages and read history after server restart', async ({ browser }, info) => {
   const suffix = randomBytes(5).toString('hex'); const password = randomBytes(24).toString('hex');
@@ -51,6 +52,14 @@ test('two users exchange encrypted messages and read history after server restar
     const history = await (await fetch(base + '/_matrix/client/v3/rooms/' + encodeURIComponent(joined.joined_rooms[0]) + '/messages?dir=b&limit=50', { headers })).json();
     expect(history.chunk.filter(e => e.type === 'm.room.encrypted').length).toBeGreaterThanOrEqual(3);
     expect(JSON.stringify(history)).not.toContain(first); expect(JSON.stringify(history)).not.toContain(reply);
+    await checkRestoredSnapshot(async restoredBase => {
+      const response = await fetch(restoredBase + '/_matrix/client/v3/rooms/' + encodeURIComponent(joined.joined_rooms[0]) + '/messages?dir=b&limit=50', { headers });
+      expect(response.status).toBe(200);
+      const restored = await response.json();
+      expect(restored.chunk.filter(e => e.type === 'm.room.encrypted').map(e => e.event_id).sort())
+        .toEqual(history.chunk.filter(e => e.type === 'm.room.encrypted').map(e => e.event_id).sort());
+      expect(JSON.stringify(restored)).not.toContain(first);
+    });
     expect(await bob.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     // Device verification, key backup and lost-device recovery remain separate gates.
     await alice.screenshot({ path: info.outputPath('encrypted-desktop.png'), fullPage: true });

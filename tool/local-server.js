@@ -6,11 +6,12 @@ import { fileURLToPath } from 'node:url';
 export const directory = fileURLToPath(new URL('../deploy/local/data/', import.meta.url));
 export const base = 'http://127.0.0.1:18008';
 const compose = fileURLToPath(new URL('../deploy/local/compose.yaml', import.meta.url));
-export async function docker(args) {
+export async function docker(args, { project = 'mutual-chat-local', data, port } = {}) {
   await new Promise((resolve, reject) => {
-    const child = spawn('docker', ['compose', '-p', 'mutual-chat-local', '-f', compose, ...args], {
+    const child = spawn('docker', ['compose', '-p', project, '-f', compose, ...args], {
       stdio: 'inherit', shell: false, env: { ...process.env,
-        SYNAPSE_UID: String(process.getuid?.() ?? 991), SYNAPSE_GID: String(process.getgid?.() ?? 991) },
+        SYNAPSE_UID: String(process.getuid?.() ?? 991), SYNAPSE_GID: String(process.getgid?.() ?? 991),
+        SYNAPSE_DATA_DIR: data || directory, SYNAPSE_PORT: String(port || 18008) },
     });
     child.on('error', reject); child.on('exit', code => code === 0 ? resolve() : reject(new Error(`Docker exited ${code}`)));
   });
@@ -33,9 +34,9 @@ export async function init() {
   try { await fs.writeFile(directory + 'log.yaml', JSON.stringify(logs), { flag: 'wx', mode: 0o600 }); }
   catch (e) { if (e.code !== 'EEXIST') throw e; }
 }
-export async function waitForServer() {
+export async function waitForServer(url = base) {
   for (let i = 0; i < 90; i++) {
-    try { if ((await fetch(base + '/_matrix/client/versions', { signal: AbortSignal.timeout(2000) })).ok) return; } catch {}
+    try { if ((await fetch(url + '/_matrix/client/versions', { signal: AbortSignal.timeout(2000) })).ok) return; } catch {}
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
   throw new Error('Local Synapse did not become ready within 90 seconds');

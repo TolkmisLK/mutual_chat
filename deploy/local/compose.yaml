@@ -4,8 +4,8 @@ services:
     user: "${SYNAPSE_UID:-991}:${SYNAPSE_GID:-991}"
     restart: unless-stopped
     ports:
-      - "127.0.0.1:18008:8008"
+      - "127.0.0.1:${SYNAPSE_PORT:-18008}:8008"
     volumes:
-      - ./data:/data
+      - ${SYNAPSE_DATA_DIR:-./data}:/data
     environment:
       SYNAPSE_CONFIG_PATH: /data/homeserver.yaml
