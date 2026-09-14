@@ -2,6 +2,10 @@
 
 Development preview. This is not a public deployment or native-device acceptance.
 
+## Local session restoration — candidate awaiting browser CI
+
+The standalone shell now offers temporary memory-only login and opt-in encrypted local session storage. Four additional real Web Crypto unit tests passed locally (10 total). Five browser scenarios are discovered, including two new real-server restoration/revocation cases; they have not yet been executed for this candidate. Previous browser evidence below applies to the previous revision, not automatically to this storage change. See [SESSION-SECURITY.md](SESSION-SECURITY.md) for the format, scope and deletion limitations.
+
 ## Embedded host navigation and lifecycle
 
 [PR #3 CI](https://github.com/TolkmisLK/mutual_chat/actions/runs/34811896034), candidate `434a7d756503431fe77476a1fc0cf09a6695e8eb`: `check` and `integration` passed. Six unit tests and all three production outputs (widget, standalone, host example) passed. The widget copied into the host output was also compared locally byte for byte with the standalone ES module; public exports are `ChatSession` and `mountChat`.
