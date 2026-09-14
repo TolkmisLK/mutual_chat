@@ -26,7 +26,7 @@ npm run test:browser
 
 The test creates two unique non-admin fixture accounts using Synapse's [official shared-secret registration API](https://github.com/element-hq/synapse/blob/v1.160.0/docs/admin_api/register_api.md). Passwords are random and token responses remain only in process memory. No network traces are retained because login traces may contain credentials. Reports/screenshots contain only generated test identities and messages. The test leaves its accounts and room in the fixture database so evidence is inspectable; never run it against an unrelated homeserver.
 
-The server must already be running. Tests cover private room invitations, bidirectional RustCrypto message delivery, encrypted outbound event content, service restart, and encrypted history retrieved from persisted server storage. These tests do not verify cross-signing, lost-device recovery or TLS deployment. Check the actual CI result before treating any case as passed.
+The server must already be running. Tests cover private room invitations, bidirectional RustCrypto message delivery, encrypted outbound event content, service restart, and encrypted history retrieved from persisted server storage. This scenario passed in CI (see VALIDATION.md). It does not verify cross-signing, lost-device recovery or TLS deployment.
 
 ## Local backup and restoration rehearsal
 
