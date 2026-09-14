@@ -16,6 +16,6 @@ Only messages whose keys were actually backed up can be recovered. This does not
 
 Unit cases cover SDK delegation, temporary-key cleanup, wrong/missing material, synchronization gates, concurrent operations, closing during pending work and rejecting unrelated secret requests. A new real-server browser case creates a private fixture backup with the official SDK, closes the original device context, logs in on a distinct browser device, confirms old history is not decryptable before recovery, restores it, confirms the backup version is unchanged and continues encrypted sending. The fixture initialization helper is served only by a loopback development test server, not imported into production entries.
 
-This candidate still awaits CI execution. See [VALIDATION.md](VALIDATION.md) for actual results, not the presence of test source alone.
+The real-server scenario passed in PR #5 CI, including malformed and valid-but-wrong secrets, recovery on a distinct device, unchanged backup version and another local reload/unlock that still decrypts imported history. See [VALIDATION.md](VALIDATION.md) for exact commit, run, timings and inspected screenshots. Large/partial backups and physical-device lifecycle remain untested.
 
 Primary implementation references: [Matrix SDK 42.3.0 backup recovery](https://github.com/matrix-org/matrix-js-sdk/blob/v42.3.0/src/rust-crypto/rust-crypto.ts), [SDK recovery-key representation](https://github.com/matrix-org/matrix-js-sdk/blob/v42.3.0/src/crypto-api/recovery-key.ts).

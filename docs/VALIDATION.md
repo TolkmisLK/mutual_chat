@@ -1,10 +1,16 @@
-# Validation — 2026-09-14 (Asia/Shanghai)
+# Validation — 2026-09-15 (Asia/Shanghai)
 
 Development preview. This is not a public deployment or native-device acceptance.
 
-## Existing remote backup recovery — candidate pending CI
+## Existing remote backup recovery
 
-Added a restore-only controller/UI using official Matrix recovery-key and backup APIs. Five new unit cases and one real-server new-device recovery scenario are awaiting CI. Production code never creates, resets or deletes a backup or cross-signing identity. The fixture helper initializes only a newly generated test account. The local runtime is unavailable, so no local execution or new screenshot inspection is claimed. See [RECOVERY.md](RECOVERY.md).
+[PR #5 CI](https://github.com/TolkmisLK/mutual_chat/actions/runs/34896682693), candidate `d8f8476f633c6ee5ab90202b3379602f6127a3fd`: both jobs passed, with 16 unit tests, three production builds and six real/controlled Chromium scenarios (56.0 seconds). Local unit tests and three builds also passed after local execution became available again; Docker remains unavailable locally, so real-server execution is evidenced by CI.
+
+The new recovery scenario (7.6 seconds) creates a backup only for a generated test identity using the official SDK, closes that original context, and signs in on a distinct production-app device. Old history initially lacks keys. Malformed and syntactically valid but wrong secrets are rejected; the correct recovery key imports the old message, leaves the server backup version unchanged, and permits a new encrypted send. A further reload/unlock retains the same new device and decrypts both messages without re-entering the recovery key. Existing session, revocation, host lifecycle and two-user/server-snapshot cases passed again.
+
+The initial candidate failed because SDK decryption failures use a synthetic message event containing an internal error body. The core now explicitly handles `isDecryptionFailure()` as a localized missing-key placeholder, with a unit regression proving transition to recovered plaintext. No cryptographic assertion was removed.
+
+Artifact `10368314826` was downloaded and actual recovered-backup and phone-viewport screenshots were inspected: old/new history is visible after reload, composer is ready, and header controls wrap on narrow screens. No secrets or browser traces are included. Production recovery never initializes, resets or deletes backup/cross-signing identities; first-time setup and peer verification remain unfinished. See [RECOVERY.md](RECOVERY.md).
 
 ## Encrypted local session restoration
 
@@ -71,4 +77,4 @@ See [LOCAL-SERVER.md](LOCAL-SERVER.md) for configuration, storage and private ba
 
 ## Unfinished launch gates
 
-Device verification and cross-signing; key backup/lost-device recovery; real attachments/pagination/unread controls; PostgreSQL + trusted TLS staging deployment and its backup restoration; desktop/mobile native builds and physical-device lifecycle tests. Local session restoration and embedded-host interaction now have the real-browser evidence above. No stable release has been published.
+Device verification and cross-signing; first-time backup setup and large/partial backup recovery; real attachments/pagination/unread controls; PostgreSQL + trusted TLS staging deployment and its backup restoration; desktop/mobile native builds and physical-device lifecycle tests. Local session restoration, existing remote backup recovery and embedded-host interaction have the real-browser evidence above. No stable release has been published.
