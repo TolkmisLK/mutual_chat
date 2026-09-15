@@ -24,10 +24,11 @@ test('two users exchange encrypted messages and read history after server restar
   }
   try {
     await login(alice, aliceId); await login(bob, bobId);
-    const roomName = '加密验收 ' + suffix; let prompts = 0;
-    alice.on('dialog', dialog => dialog.accept(++prompts === 1 ? roomName : bobId));
+    const roomName = '加密验收 ' + suffix;
     await expect(alice.getByRole('button', { name: '新建会话' })).toBeEnabled();
     await alice.getByRole('button', { name: '新建会话' }).click();
+    await alice.getByLabel('会话名称', { exact: true }).fill(roomName); await alice.getByLabel('邀请用户 ID', { exact: true }).fill(bobId);
+    await alice.getByRole('button', { name: '创建加密会话', exact: true }).click();
     const invitation = bob.getByRole('button', { name: '邀请 · ' + roomName, exact: true });
     await expect(invitation).toBeVisible(); bob.on('dialog', dialog => dialog.accept()); await invitation.click();
     await expect(bob.locator('header').filter({ hasText: roomName })).toContainText('端到端加密会话');

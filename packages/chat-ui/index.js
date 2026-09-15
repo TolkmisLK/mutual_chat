@@ -15,6 +15,11 @@ export function mountChat(container, { client, session: providedSession }) {
   historyBar.innerHTML = '<button type="button" class="earlier" hidden>加载更早消息</button><span class="history-state" role="status"></span>';
   q('section').insertBefore(historyBar, q('.messages'));
   q('style').textContent += '.history{padding:8px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12px}.history[hidden]{display:none}.history button{font-size:13px}.messages{overflow-anchor:none}';
+  const creation = document.createElement('dialog'); creation.className = 'create-dialog';
+  creation.innerHTML = '<h2>新建私密会话</h2><form><label>会话名称<input name="name" maxlength="100" required></label><label>邀请用户 ID<input name="invites" placeholder="@friend:example.org，逗号分隔"></label><p class="create-error" role="status"></p><div><button type="submit">创建加密会话</button><button type="button" class="cancel-create">取消</button></div></form>';
+  root.append(creation); let creating = false;
+  q('style').textContent += '.create-dialog{width:min(500px,92vw);border:1px solid #bfd2df;border-radius:14px;padding:24px;color:inherit;background:#f7fafc}.create-dialog::backdrop{background:#14212d99}.create-dialog form{display:block;padding:0;border:0}.create-dialog label{display:block;margin:12px 0}.create-dialog input{display:block;width:100%;padding:10px;font:inherit;margin-top:6px}.create-dialog button{margin-right:8px}.create-error{color:#9b3028}';
+  q('style').textContent += '@media(prefers-color-scheme:dark){.create-dialog,.create-dialog input{background:#1d2e3d;color:#e1ebf2}.create-error{color:#ffabab}}';
   const status = text => { if (!stopped) q('.status').textContent = text; };
   function render() {
     if (stopped) return; const rooms = session.rooms(); q('.rooms').replaceChildren();
@@ -57,7 +62,7 @@ export function mountChat(container, { client, session: providedSession }) {
     else if (!wasReady) status('');
     wasReady = session.ready;
   }
-  q('form').onsubmit = async e => {
+  q('section > form').onsubmit = async e => {
     e.preventDefault(); if (stopped || sending) return;
     const input = q('textarea'); const text = input.value; const target = selected;
     sending = true; render();
@@ -72,17 +77,27 @@ export function mountChat(container, { client, session: providedSession }) {
     catch { if (selected === target) status('历史加载失败，请检查连接后重试。'); }
     finally { render(); }
   };
-  q('.create').onclick = async () => {
-    if (stopped) return;
-    const name = prompt('会话名称'); if (!name) return; const raw = prompt('邀请的 Matrix 用户 ID（逗号分隔，可留空）'); if (raw === null) return;
-    try { const room = await session.createRoom(name, raw.split(',').map(s => s.trim()).filter(Boolean)); selected = room.room_id; status('会话已创建，正在同步。'); }
-    catch { status('创建失败，请检查用户 ID、连接和服务器权限。'); }
+  q('.create').onclick = () => { if (!stopped && !creating) { q('.create-error').textContent = ''; creation.showModal(); } };
+  const closeCreation = () => { if (!stopped && !creating) { creation.close(); creation.querySelector('form').reset(); } };
+  q('.cancel-create').onclick = closeCreation;
+  const cancelCreation = event => { event.preventDefault(); closeCreation(); };
+  creation.addEventListener('cancel', cancelCreation);
+  creation.querySelector('form').onsubmit = async event => {
+    event.preventDefault(); if (stopped || creating) return; creating = true;
+    for (const control of creation.querySelectorAll('button,input')) control.disabled = true;
+    try {
+      const room = await session.createRoom(creation.querySelector('[name=name]').value, creation.querySelector('[name=invites]').value.split(',').map(s => s.trim()).filter(Boolean));
+      if (!stopped) { selected = room.room_id; creation.close(); creation.querySelector('form').reset(); status('会话已创建，正在同步。'); render(); }
+    } catch { if (!stopped) q('.create-error').textContent = '创建失败，请检查用户 ID、连接和服务器权限。'; }
+    finally { creating = false; if (!stopped) for (const control of creation.querySelectorAll('button,input')) control.disabled = false; }
   };
   const unsubscribe = session.subscribe(render); render();
   return { session, unmount() {
     if (stopped) return;
     stopped = true; unsubscribe(); if (!providedSession) session.dispose();
-    q('form').onsubmit = null;
+    for (const form of root.querySelectorAll('form')) form.onsubmit = null;
+    creation.removeEventListener('cancel', cancelCreation);
+    creation.close();
     for (const button of root.querySelectorAll('button')) button.onclick = null;
     host.remove();
   } };

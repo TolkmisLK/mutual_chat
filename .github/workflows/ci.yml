@@ -7,6 +7,58 @@ on:
 permissions:
   contents: read
 jobs:
+  desktop-matrix:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: node tool/build-desktop.js linux
+      - run: npx playwright install-deps chromium
+      - run: npm run server:local
+      - run: xvfb-run -a node tool/verify-desktop-matrix.js
+      - run: npm run server:local -- stop
+        if: always()
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mutual-chat-desktop-matrix
+          path: dist/desktop-matrix-evidence/
+          if-no-files-found: error
+  windows-desktop:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm test
+      - run: npm run build
+      - run: node tool/build-desktop.js win32
+      - run: node tool/verify-desktop.js
+      - name: Archive standalone desktop directory and checksum
+        shell: pwsh
+        run: |
+          $zip = 'dist/mutual-chat-0.1.0-preview-windows-x64.zip'
+          Compress-Archive -Path 'dist/desktop/MutualChat-win32-x64' -DestinationPath $zip
+          $digest = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$digest  $([IO.Path]::GetFileName($zip))" | Set-Content "$zip.sha256" -Encoding ascii
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mutual-chat-windows-desktop
+          path: |
+            dist/*.zip
+            dist/*.sha256
+            dist/desktop-evidence/
+          if-no-files-found: error
   check:
     runs-on: ubuntu-latest
     steps:
