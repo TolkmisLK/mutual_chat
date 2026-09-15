@@ -5,10 +5,13 @@ import { VAULT_KEY, sealSession, openSession, randomStorageKey, storageKeyBytes 
 
 import { BackupRecovery } from './backup-recovery.js';
 import { mountBackupRecovery } from './backup-recovery-ui.js';
+import { DeviceSessions } from './device-sessions.js';
+import { mountDeviceSessions } from './device-sessions-ui.js';
 
 const $ = id => document.getElementById(id);
 let active; let panel; let releaseLock; let current; let remembered = false; let busy = false; let closing = false;
 let recovery; let recoveryPanel;
+let devices; let devicesPanel;
 function assertOpen() { if (closing) throw new Error('Window closed during initialization'); }
 const say = text => { $('status').textContent = text; };
 function landing() {
@@ -17,7 +20,7 @@ function landing() {
   catch { say('浏览器不允许读取本地存储，请调整设置后重试。'); }
   $('login').hidden = saved; $('unlock').hidden = !saved;
   $('login-panel').hidden = false; $('chat').hidden = true;
-  $('logout').hidden = true; $('lock').hidden = true; $('security').hidden = true; $('device').textContent = '';
+  $('logout').hidden = true; $('lock').hidden = true; $('security').hidden = true; $('devices').hidden = true; $('device').textContent = '';
 }
 async function holdLock() {
   if (!navigator.locks || !crypto.subtle) throw new Error('请通过 HTTPS 或 localhost 使用支持 Web Locks 的浏览器。');
@@ -29,6 +32,7 @@ async function holdLock() {
   });
 }
 function stop() {
+  devicesPanel?.dispose(); devicesPanel = null; devices?.dispose(); devices = null;
   recoveryPanel?.dispose(); recoveryPanel = null; recovery?.dispose(); recovery = null;
   panel?.unmount(); panel = null; active?.stopClient(); active = null; current = null; remembered = false;
   releaseLock?.(); releaseLock = null;
@@ -47,14 +51,15 @@ async function start(session, persist) {
   await active.startClient({ initialSyncLimit: 30 });
   assertOpen();
   recoveryPanel = mountBackupRecovery(recovery, setBusy);
+  devices = new DeviceSessions(active); devicesPanel = mountDeviceSessions(devices, setBusy);
 }
 function showChat() {
-  $('login-panel').hidden = true; $('chat').hidden = false; $('logout').hidden = false; $('lock').hidden = !remembered; $('security').hidden = false;
+  $('login-panel').hidden = true; $('chat').hidden = false; $('logout').hidden = false; $('lock').hidden = !remembered; $('security').hidden = false; $('devices').hidden = false;
   $('device').textContent = `${current.userId} · 设备 ${current.deviceId}${remembered ? ' · 已在此浏览器保留' : ' · 临时会话'}`; say('');
 }
 function setBusy(value) {
   busy = value;
-  for (const id of ['connect', 'unlock-button', 'forget', 'logout', 'lock', 'security']) $(id).disabled = value;
+  for (const id of ['connect', 'unlock-button', 'forget', 'logout', 'lock', 'security', 'devices']) $(id).disabled = value;
   if (!value && closing) stop();
 }
 $('remember').onchange = () => {
@@ -109,6 +114,7 @@ $('unlock').onsubmit = async event => {
   } finally { $('unlock-passphrase').value = ''; setBusy(false); }
 };
 $('security').onclick = () => { if (!busy) recoveryPanel?.open(); };
+$('devices').onclick = () => { if (!busy) devicesPanel?.open(); };
 $('lock').onclick = () => { if (busy) return; stop(); landing(); say('已锁定，输入本机口令可继续使用原设备。'); };
 $('forget').onclick = async () => {
   if (busy || !confirm('忘记保存的登录会导致此浏览器无法恢复原设备密钥。此操作不会退出服务器上的设备，请从其他客户端撤销该设备。仍要忘记？')) return;

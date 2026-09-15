@@ -2,6 +2,10 @@
 
 Development preview. This is not a public deployment or native-device acceptance.
 
+## Account-device management — candidate pending CI
+
+Added standalone-only device listing and explicitly confirmed removal of another account device through the official SDK. Five new controller tests pass locally for target/current-device restrictions, UIA target/account binding, wrong-password retry, expired/cancelled/unsupported flows, concurrency/disposal and ambiguous results. A real Synapse browser scenario now requests removal, checks cancellation sends no request, fails password authentication before retry, then checks the removed token returns 401 while the current token and encrypted event IDs remain valid. The real scenario is not yet recorded as passed. See [DEVICE-SESSIONS.md](DEVICE-SESSIONS.md). This is not cryptographic device verification.
+
 ## Independent desktop package and actual runtime — 2026-09-15
 
 [PR #7 final CI](https://github.com/TolkmisLK/mutual_chat/actions/runs/34967502143), candidate `366a27a6540f9b274a6f903e9eafb7ded4e897cd`: all four jobs passed. Windows and Linux each passed 21 unit tests; all three Web/widget/host builds passed. Eight actual Chromium scenarios passed in 3.0 minutes, including the new controlled creation-dialog cancel/retry/duplicate/disposal regression (185 ms). Local 21 unit tests and the three builds passed before this candidate was uploaded.
