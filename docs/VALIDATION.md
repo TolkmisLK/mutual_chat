@@ -2,9 +2,13 @@
 
 Development preview. This is not a public deployment or native-device acceptance.
 
-## Earlier-message pagination — candidate pending CI
+## Earlier-message pagination
 
-Local 19 unit tests and all three production builds pass. The new controlled regressions cover cached expansion, event-ID deduplication, the 1,000-message rendering cap, shared pending requests, exhausted history, failed-page retry and disposed adapters ignoring later completion. Seven browser scenarios are discovered. A new real SDK/Synapse scenario seeds 32 encrypted messages, restores their backed-up key in a new browser and tests the real backward-history endpoint, an interrupted request, retry, reading-anchor preservation and accessible-history exhaustion. Actual service/browser execution is pending CI; no new screenshot or encryption acceptance is claimed yet. See [HISTORY.md](HISTORY.md).
+[PR #6 final CI](https://github.com/TolkmisLK/mutual_chat/actions/runs/34926577158), candidate `6615e06ff39dc65c19f4445014e912da53388e07`: both jobs passed, with 19 unit tests, all three builds and seven browser scenarios in 3.0 minutes. Local 19 unit tests and three builds also passed. Controlled regressions cover cached expansion, event-ID deduplication, the 1,000-message rendering cap, shared pending requests, exhausted history, failed-page retry and disposed adapters ignoring later completion.
+
+The real SDK/Synapse scenario took 2.0 minutes, including seeding 32 encrypted messages while respecting the fixture server's existing message rate limits. A distinct new browser device initially receives only 30 messages, restores their existing backed-up key, and loads the missing early messages through the real backward-history endpoint. A deliberately interrupted request fails visibly and retries successfully, with exactly 32 distinct event IDs, all decrypted. The first visible event stays within 3 pixels of its prior relative reading position. Loading reaches the server's accessible-history boundary and hides the paging control. Existing recovery, host lifecycle and restart scenarios pass again.
+
+Artifact `10380420448` was downloaded and its actual history screenshot inspected: the earliest messages and history-beginning label are visible, the composer remains usable, and the old failure status is cleared after retry. The initial passing candidate `f34a72cc` exposed that stale status in its screenshot; the final candidate fixes it and repeats all gates. These are Chromium/CI results, not phone hardware or unlimited-history navigation acceptance. See [HISTORY.md](HISTORY.md).
 
 ## Existing remote backup recovery
 
