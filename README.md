@@ -54,7 +54,8 @@ panel.unmount();
 - 设备验证、跨签名和首次远程备份设置 **尚未实现**。没有已保存的恢复密钥或有效备份时，清理浏览器数据、退出未备份设备仍可能失去历史密钥，不能将预览版当成完整通信产品。
 - 只允许一个独立窗口持有 SDK；嵌入场景的 client 生命周期由宿主管理，不允许多个 client 同时写同一个加密数据库。
 - 消息正文按纯文本渲染，不执行消息中的 HTML。
+- 独立应用中的「设备会话」可查看本帐号设备、确认后撤销其他设备登录，并按服务器要求重新认证。当前设备受保护；此操作不是密钥身份验证，也不能远程擦除已有消息副本。见 [设备会话说明](docs/DEVICE-SESSIONS.md)。
 
 ## 验证与下一步
 
-最近桌面候选通过 21 项单元测试、三种 Web/模块构建和 8 项 Chromium 场景；还通过 Windows 打包启动与独立 Linux 桌面进程加密互通/重启恢复。Windows ZIP 校验与真实界面截图已检查。结果与平台边界见 [VALIDATION.md](docs/VALIDATION.md)，后续验收见 [ROADMAP.md](docs/ROADMAP.md)。
+最近设备管理候选通过 26 项单元测试、三种 Web/模块构建和 9 项 Chromium 场景；Windows 打包启动与独立 Linux 桌面进程加密互通/重启恢复也再次通过。此前 Windows ZIP 校验和最新设备撤销的真实手机视口截图已检查。结果与平台边界见 [VALIDATION.md](docs/VALIDATION.md)，后续验收见 [ROADMAP.md](docs/ROADMAP.md)。

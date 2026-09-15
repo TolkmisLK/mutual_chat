@@ -2,9 +2,13 @@
 
 Development preview. This is not a public deployment or native-device acceptance.
 
-## Account-device management — candidate pending CI
+## Account-device management — 2026-09-16
 
-Added standalone-only device listing and explicitly confirmed removal of another account device through the official SDK. Five new controller tests pass locally for target/current-device restrictions, UIA target/account binding, wrong-password retry, expired/cancelled/unsupported flows, concurrency/disposal and ambiguous results. A real Synapse browser scenario now requests removal, checks cancellation sends no request, fails password authentication before retry, then checks the removed token returns 401 while the current token and encrypted event IDs remain valid. The real scenario is not yet recorded as passed. See [DEVICE-SESSIONS.md](DEVICE-SESSIONS.md). This is not cryptographic device verification.
+[PR #8 CI](https://github.com/TolkmisLK/mutual_chat/actions/runs/35028377496), candidate `82a82ab7508d343ea8bdfa69b4ed94557df660bb`: all four jobs passed. Windows and Linux unit gates pass 26 tests, the three Web builds pass, and nine real Chromium scenarios pass in 3.0 minutes. Windows packaged-window and Linux native encrypted restart gates also pass again.
+
+The new real Synapse device-removal scenario took 4.5 seconds. Cancelling confirmation sends no DELETE request; the server requires UIA password authentication, an incorrect password is refused and its input cleared, and the correct password removes only the selected other device. Its old token subsequently returns 401 while the current device token returns 200. Encrypted room event IDs are unchanged. Five controlled tests additionally cover unknown/current targets, exact account/target binding, expired/cancelled/unsupported challenges, concurrent/disposed operations and ambiguous network outcomes. Local 26 tests and three builds passed before upload.
+
+Artifact `10420527218` was downloaded and its real mobile-viewport device-removal screenshot inspected: the remaining current device is protected, the removed target is absent, controls fit, and the result warns that existing copies cannot be erased. This is Chromium/CI evidence, not physical phone or cryptographic device verification. See [DEVICE-SESSIONS.md](DEVICE-SESSIONS.md).
 
 ## Independent desktop package and actual runtime — 2026-09-15
 
