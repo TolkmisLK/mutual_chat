@@ -67,6 +67,7 @@ export function mountChat(container, { client, session: providedSession }) {
   };
   q('.earlier').onclick = async () => {
     if (stopped || !selected) return; const target = selected;
+    status('');
     try { await session.loadEarlier(target); }
     catch { if (selected === target) status('历史加载失败，请检查连接后重试。'); }
     finally { render(); }
