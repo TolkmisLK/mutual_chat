@@ -10,4 +10,6 @@ Build with Node 22.12+ and the lockfile: `npm ci --ignore-scripts`, `npm run bui
 
 The room-creation form uses an application dialog instead of browser prompt(), which Electron does not support. Existing Web/embedded tests must continue to pass with this shared change. Physical Windows installation, trusted TLS against an operator's actual service, signing, update policy and native lifecycle acceptance remain release gates.
 
+The CI native Matrix scenario packages the same app for Linux x64 on Ubuntu 22.04 and runs two isolated real Electron processes under Xvfb, with Chromium sandboxing explicitly enabled. It uses generated accounts on the loopback Synapse fixture, checks encrypted exchange, closes and reopens a remembered profile, and checks the original device can decrypt history and continue sending. It must pass before being recorded as evidence; it is not Windows Matrix interoperability or physical-device acceptance. No OS sandbox restrictions are disabled, certificate errors ignored, profiles uploaded or cryptographic SDK calls replaced.
+
 References: [Electron security](https://www.electronjs.org/docs/latest/tutorial/security), [custom protocols](https://www.electronjs.org/docs/latest/api/protocol).

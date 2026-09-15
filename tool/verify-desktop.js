@@ -25,8 +25,14 @@ try {
   assert.equal(runtime.sandboxDisabledByArgument, false);
   const denied = await page.evaluate(async () => (await fetch('mutual-chat://app/desktop/main.cjs')).status); assert.equal(denied, 404);
   const popup = await page.evaluate(() => window.open('https://example.invalid/') === null); assert.equal(popup, true);
+  const navigation = application.evaluate(({ BrowserWindow }) => new Promise(resolve => {
+    const contents = BrowserWindow.getAllWindows()[0].webContents;
+    contents.once('will-navigate', (event, url) => resolve({ url, prevented: event.defaultPrevented, current: contents.getURL() }));
+  }));
   await page.evaluate(() => { location.href = 'https://example.invalid/'; });
-  await expect(page).toHaveURL('mutual-chat://app/'); assert.equal(application.windows().length, 1);
+  assert.deepEqual(await navigation, { url: 'https://example.invalid/', prevented: true, current: 'mutual-chat://app/' });
+  // A deliberately cancelled navigation has no load event; inspect the live document.
+  assert.equal(await page.evaluate(() => location.href), 'mutual-chat://app/'); assert.equal(application.windows().length, 1);
   // Exercise actual secure-context WebCrypto/IndexedDB/Web Locks, not a mock.
   assert.equal(await page.evaluate(async () => {
     const key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
