@@ -17,9 +17,10 @@ test('encrypted local session resumes the same device, protects lock ownership a
   await expect(page.locator('#chat')).toBeVisible(); await expect(page.locator('#device')).toContainText(auth.device_id);
   const sealed = await page.evaluate(key => localStorage.getItem(key), key); expect(sealed).toBeTruthy();
   for (const secret of [auth.access_token, auth.device_id, user, password, passphrase]) expect(sealed).not.toContain(secret);
-  const room = '恢复验收 ' + suffix; let dialogs = 0;
-  page.on('dialog', d => d.accept(d.type() === 'prompt' ? (++dialogs === 1 ? room : '') : undefined));
+  const room = '恢复验收 ' + suffix;
+  page.on('dialog', d => d.accept());
   await expect(page.getByRole('button', { name: '新建会话' })).toBeEnabled(); await page.getByRole('button', { name: '新建会话' }).click();
+  await page.getByLabel('会话名称', { exact: true }).fill(room); await page.getByRole('button', { name: '创建加密会话', exact: true }).click();
   const original = '刷新前加密消息 ' + suffix;
   await expect(page.getByRole('button', { name: '发送', exact: true })).toBeEnabled();
   await page.getByRole('textbox', { name: '消息', exact: true }).fill(original);

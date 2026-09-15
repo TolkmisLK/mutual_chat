@@ -2,6 +2,10 @@
 
 Development preview. This is not a public deployment or native-device acceptance.
 
+## Independent Windows desktop — candidate pending CI
+
+Added a pinned Electron 44.3.0 standalone package and restricted app protocol, with sandbox/context isolation and no Node/preload/IPC renderer bridge. Local 21 tests pass; the Windows CI job will package and actually launch the executable, exercise WebCrypto/IndexedDB/Web Locks, deny extra protocol files/popups/external navigation, and capture a real login-window image and JSON. Native execution and packaging have not yet passed. The shared room-creation prompt has been replaced with an application form for Electron compatibility; the real Web/embedded scenarios are updated and must pass again. See [DESKTOP.md](DESKTOP.md). This initial native gate does not prove Matrix login or encryption inside Windows, a signed installer or consumer-machine acceptance.
+
 ## Earlier-message pagination
 
 [PR #6 final CI](https://github.com/TolkmisLK/mutual_chat/actions/runs/34926577158), candidate `6615e06ff39dc65c19f4445014e912da53388e07`: both jobs passed, with 19 unit tests, all three builds and seven browser scenarios in 3.0 minutes. Local 19 unit tests and three builds also passed. Controlled regressions cover cached expansion, event-ID deduplication, the 1,000-message rendering cap, shared pending requests, exhausted history, failed-page retry and disposed adapters ignoring later completion.

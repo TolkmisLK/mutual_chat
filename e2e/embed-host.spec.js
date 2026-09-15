@@ -16,11 +16,11 @@ test('built widget preserves host login, subscriptions and pending encrypted sen
   const diagnostic = async () => JSON.parse(await page.locator('#diagnostics').textContent());
   await expect(page.locator('#workspace')).toBeVisible();
   await expect.poll(async () => ['PREPARED', 'SYNCING'].includes((await diagnostic()).syncState)).toBe(true);
-  const roomName = '宿主会话 ' + suffix; let prompts = 0;
-  page.on('dialog', d => d.accept(++prompts === 1 ? roomName : ''));
+  const roomName = '宿主会话 ' + suffix;
   await page.getByRole('button', { name: '打开聊天', exact: true }).click();
   await expect(page.getByRole('button', { name: '新建会话' })).toBeEnabled();
   await page.getByRole('button', { name: '新建会话' }).click();
+  await page.getByLabel('会话名称', { exact: true }).fill(roomName); await page.getByRole('button', { name: '创建加密会话', exact: true }).click();
   await expect(page.getByRole('button', { name: '发送', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: '工作台', exact: true }).click();
   const baseline = await diagnostic(); expect(baseline.sharedSubscribers).toBe(0);
