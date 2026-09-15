@@ -89,4 +89,4 @@ See [LOCAL-SERVER.md](LOCAL-SERVER.md) for configuration, storage and private ba
 
 ## Unfinished launch gates
 
-Device verification and cross-signing; first-time backup setup and large/partial backup recovery; real attachments/pagination/unread controls; PostgreSQL + trusted TLS staging deployment and its backup restoration; desktop/mobile native builds and physical-device lifecycle tests. Local session restoration, existing remote backup recovery and embedded-host interaction have the real-browser evidence above. No stable release has been published.
+Device verification and cross-signing; first-time backup setup and large/partial backup recovery; attachments/unread/search and navigation beyond the bounded history window; PostgreSQL + trusted TLS staging deployment and its backup restoration; desktop/mobile native acceptance and physical-device lifecycle tests. Local session restoration, existing remote backup recovery, bounded history pagination and embedded-host interaction have the real-browser evidence above. No stable release has been published.

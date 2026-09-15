@@ -78,9 +78,10 @@ export function mountChat(container, { client, session: providedSession }) {
     finally { render(); }
   };
   q('.create').onclick = () => { if (!stopped && !creating) { q('.create-error').textContent = ''; creation.showModal(); } };
-  const closeCreation = () => { if (!creating) { creation.close(); creation.querySelector('form').reset(); } };
+  const closeCreation = () => { if (!stopped && !creating) { creation.close(); creation.querySelector('form').reset(); } };
   q('.cancel-create').onclick = closeCreation;
-  creation.addEventListener('cancel', event => { event.preventDefault(); closeCreation(); });
+  const cancelCreation = event => { event.preventDefault(); closeCreation(); };
+  creation.addEventListener('cancel', cancelCreation);
   creation.querySelector('form').onsubmit = async event => {
     event.preventDefault(); if (stopped || creating) return; creating = true;
     for (const control of creation.querySelectorAll('button,input')) control.disabled = true;
@@ -95,6 +96,7 @@ export function mountChat(container, { client, session: providedSession }) {
     if (stopped) return;
     stopped = true; unsubscribe(); if (!providedSession) session.dispose();
     for (const form of root.querySelectorAll('form')) form.onsubmit = null;
+    creation.removeEventListener('cancel', cancelCreation);
     creation.close();
     for (const button of root.querySelectorAll('button')) button.onclick = null;
     host.remove();
