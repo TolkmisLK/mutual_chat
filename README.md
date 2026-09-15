@@ -2,7 +2,7 @@
 
 可独立运行，也可嵌入其他产品的聊天界面。参考常见即时聊天软件的会话列表和消息交互，使用 Matrix 协议连接聊天服务。
 
-**开发预览，尚未达到正式上线验收。** 当前包含独立 Web 应用、可嵌入的 ES 模块、会话列表、文字消息、手动接受邀请与创建私密加密会话。本机 Matrix 服务、真实双用户加密互通及已有备份的新设备历史恢复测试已通过；公开服务部署、桌面/移动原生打包、首次备份设置、设备验证和附件仍待完成。
+**开发预览，尚未达到正式上线验收。** 当前包含独立 Web 应用、可嵌入 ES 模块与 Windows 桌面预览包，以及文字消息、邀请、私密加密会话和历史分页。本机 Matrix 服务、双用户加密互通、已有备份的新设备历史恢复、Windows 实际窗口启动及 Linux 桌面进程加密互通已通过相应测试；公开服务、Windows 真机与原生加密验收、移动客户端、首次备份、设备验证和附件仍待完成。
 
 ## 开发运行
 
@@ -23,6 +23,8 @@ npm run build
 ```
 
 产物：`dist/app/` 为独立静态 Web 应用；`dist/widget/mutual-chat.js` 为可嵌入界面模块；`dist/embed-host/` 为带登录和页面切换的宿主示例。完整部署必须保留 WASM 与其他 assets 文件。构建通过不等于服务端或真机验收通过。
+
+Windows 构建者还可运行 `node tool/build-desktop.js win32` 生成独立 Electron x64 目录。CI 的 `mutual-chat-windows-desktop` 产物包含 ZIP、SHA-256 与真实窗口验收报告。必须完整解压目录后运行 `MutualChat.exe`，不是只复制 EXE；此包未签名，无自动更新。桌面与浏览器登录数据各自隔离，详见 [DESKTOP.md](docs/DESKTOP.md)。
 
 ## 嵌入其他应用
 
@@ -55,4 +57,4 @@ panel.unmount();
 
 ## 验证与下一步
 
-10 项单元测试、三种生产构建和 5 项 Chromium 场景通过：真实 Synapse 双用户加密通信与服务备份恢复、嵌入宿主生命周期、同设备会话恢复与历史解密、多窗口锁定交接和失效登录处理。实际桌面和手机视口截图已审阅。结果与边界见 [VALIDATION.md](docs/VALIDATION.md)，后续验收见 [ROADMAP.md](docs/ROADMAP.md)。
+最近桌面候选通过 21 项单元测试、三种 Web/模块构建和 8 项 Chromium 场景；还通过 Windows 打包启动与独立 Linux 桌面进程加密互通/重启恢复。Windows ZIP 校验与真实界面截图已检查。结果与平台边界见 [VALIDATION.md](docs/VALIDATION.md)，后续验收见 [ROADMAP.md](docs/ROADMAP.md)。
