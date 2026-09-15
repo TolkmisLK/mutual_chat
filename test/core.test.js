@@ -47,3 +47,36 @@ test('SDK synthetic decryption failure stays a placeholder until keys arrive', (
   assert.equal(changes, 1); assert.equal(session.messages(room.roomId)[0].text, 'Recovered history');
   session.dispose();
 });
+
+const historyEvent = i => ({ getType: () => 'm.room.message', getId: () => '$' + i, getSender: () => '@other:example.org', isRedacted: () => false, getContent: () => ({ body: 'History ' + i }), getTs: () => i });
+test('cached history expands in pages, deduplicates IDs and bounds rendered messages', async () => {
+  const { session, room, client } = fake(); const events = Array.from({ length: 1200 }, (_, i) => historyEvent(i));
+  room.getLiveTimeline = () => ({ getEvents: () => [...events, events.at(-1)] }); room.oldState = { paginationToken: null };
+  client.scrollback = () => { throw new Error('Cached history must not request the server'); };
+  assert.equal(session.messages(room.roomId).length, 200);
+  await session.loadEarlier(room.roomId); assert.equal(session.messages(room.roomId).length, 250);
+  for (let i = 0; i < 30; i++) await session.loadEarlier(room.roomId);
+  assert.equal(session.messages(room.roomId).length, 1000);
+  assert.deepEqual(session.historyState(room.roomId), { loading: false, canLoad: false, capped: true });
+  assert.equal(new Set(session.messages(room.roomId).map(m => m.id)).size, 1000);
+});
+test('one room shares pending pagination and server exhaustion stops new requests', async () => {
+  const { session, room, client } = fake(); let calls = 0; let finish; const events = [historyEvent(1)];
+  room.getLiveTimeline = () => ({ getEvents: () => events }); room.oldState = { paginationToken: 'previous' };
+  client.scrollback = async (target, limit) => { assert.equal(target, room); assert.equal(limit, 50); calls++; await new Promise(resolve => { finish = resolve; }); events.unshift(historyEvent(0)); room.oldState.paginationToken = null; };
+  const first = session.loadEarlier(room.roomId); const second = session.loadEarlier(room.roomId); assert.equal(first, second);
+  assert.equal(session.historyState(room.roomId).loading, true); await Promise.resolve(); assert.equal(calls, 1);
+  finish(); await first;
+  assert.deepEqual(session.messages(room.roomId).map(m => m.id), ['$0', '$1']);
+  assert.equal(session.historyState(room.roomId).canLoad, false); await session.loadEarlier(room.roomId); assert.equal(calls, 1);
+});
+test('failed pagination is retryable and disposed adapters ignore pending completion', async () => {
+  const { session, room, client } = fake(); room.oldState = { paginationToken: 'previous' }; let calls = 0; let finish; let changes = 0;
+  session.subscribe(() => changes++);
+  client.scrollback = async () => { if (++calls === 1) throw new Error('network fixture failure'); await new Promise(resolve => { finish = resolve; }); };
+  await assert.rejects(session.loadEarlier(room.roomId), /network/); assert.equal(session.historyState(room.roomId).loading, false);
+  const pending = session.loadEarlier(room.roomId); await Promise.resolve(); assert.equal(calls, 2);
+  session.dispose(); const baseline = changes; finish(); await pending; assert.equal(changes, baseline);
+  assert.equal(session.historyState(room.roomId).canLoad, false); await assert.rejects(session.loadEarlier(room.roomId));
+  assert.equal(client.listenerCount('Room.timeline'), 0);
+});

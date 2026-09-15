@@ -2,8 +2,9 @@ import { createClient } from 'matrix-js-sdk';
 
 // Served only by the loopback Vite development server in the browser fixture.
 // It is not imported into any production entry or copied to dist.
-window.seedBackup = async ({ baseUrl, user, password, roomName, message }) => {
+window.seedBackup = async ({ baseUrl, user, password, roomName, message, historyCount = 1 }) => {
   if (!['localhost', '127.0.0.1'].includes(new URL(baseUrl).hostname)) throw new Error('Fixture server must be loopback');
+  if (!Number.isInteger(historyCount) || historyCount < 1 || historyCount > 40) throw new Error('Fixture history count out of bounds');
   const keys = new Map(); let client;
   async function until(check, label) {
     const until = Date.now() + 90000;
@@ -37,6 +38,7 @@ window.seedBackup = async ({ baseUrl, user, password, roomName, message }) => {
       initial_state: [{ type: 'm.room.encryption', state_key: '', content: { algorithm: 'm.megolm.v1.aes-sha2' } }] });
     await until(() => client.getRoom(room_id)?.hasEncryptionStateEvent(), 'room encryption');
     const { event_id } = await client.sendTextMessage(room_id, message);
+    for (let i = 1; i < historyCount; i++) await client.sendTextMessage(room_id, message + ' · ' + i);
     const headers = { Authorization: 'Bearer ' + auth.access_token };
     const backup = await until(async () => {
       const response = await fetch(baseUrl + '/_matrix/client/v3/room_keys/version', { headers });
