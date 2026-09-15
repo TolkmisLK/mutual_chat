@@ -2,6 +2,10 @@
 
 Development preview. This is not a public deployment or native-device acceptance.
 
+## Earlier-message pagination — candidate pending CI
+
+Local 19 unit tests and all three production builds pass. The new controlled regressions cover cached expansion, event-ID deduplication, the 1,000-message rendering cap, shared pending requests, exhausted history, failed-page retry and disposed adapters ignoring later completion. Seven browser scenarios are discovered. A new real SDK/Synapse scenario seeds 32 encrypted messages, restores their backed-up key in a new browser and tests the real backward-history endpoint, an interrupted request, retry, reading-anchor preservation and accessible-history exhaustion. Actual service/browser execution is pending CI; no new screenshot or encryption acceptance is claimed yet. See [HISTORY.md](HISTORY.md).
+
 ## Existing remote backup recovery
 
 [PR #5 CI](https://github.com/TolkmisLK/mutual_chat/actions/runs/34896682693), candidate `d8f8476f633c6ee5ab90202b3379602f6127a3fd`: both jobs passed, with 16 unit tests, three production builds and six real/controlled Chromium scenarios (56.0 seconds). Local unit tests and three builds also passed after local execution became available again; Docker remains unavailable locally, so real-server execution is evidenced by CI.
