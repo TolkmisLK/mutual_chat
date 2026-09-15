@@ -10,7 +10,7 @@ const output = path.resolve('dist/desktop-evidence'); await fs.mkdir(output, { r
 const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE; delete env.NODE_OPTIONS; delete env.NODE_PATH;
 let application;
 try {
-  application = await electron.launch({ executablePath, args: ['--user-data-dir=' + profile], env, timeout: 60000 });
+  application = await electron.launch({ executablePath, args: ['--user-data-dir=' + profile], env, chromiumSandbox: true, timeout: 60000 });
   const page = await application.firstWindow(); await page.waitForLoadState('domcontentloaded');
   await expect(page.getByRole('button', { name: '连接', exact: true })).toBeVisible();
   assert.equal(page.url(), 'mutual-chat://app/');
@@ -18,10 +18,11 @@ try {
   assert.deepEqual(isolation, { node: 'undefined', require: 'undefined', secure: true, locks: 'function', subtle: 'function' });
   const runtime = await application.evaluate(({ app, BrowserWindow }) => {
     const prefs = BrowserWindow.getAllWindows()[0].webContents.getLastWebPreferences();
-    return { packaged: app.isPackaged, electron: process.versions.electron, platform: process.platform, sandbox: prefs.sandbox, contextIsolation: prefs.contextIsolation, nodeIntegration: prefs.nodeIntegration, webSecurity: prefs.webSecurity, profile: app.getPath('userData') };
+    return { packaged: app.isPackaged, electron: process.versions.electron, platform: process.platform, sandbox: prefs.sandbox, sandboxDisabledByArgument: app.commandLine.hasSwitch('no-sandbox'), contextIsolation: prefs.contextIsolation, nodeIntegration: prefs.nodeIntegration, webSecurity: prefs.webSecurity, profile: app.getPath('userData') };
   });
   assert.equal(runtime.packaged, true); assert.equal(runtime.electron, '44.3.0'); assert.equal(runtime.sandbox, true); assert.equal(runtime.contextIsolation, true); assert.equal(runtime.nodeIntegration, false); assert.equal(runtime.webSecurity, true);
   assert.equal(path.resolve(runtime.profile), profile);
+  assert.equal(runtime.sandboxDisabledByArgument, false);
   const denied = await page.evaluate(async () => (await fetch('mutual-chat://app/desktop/main.cjs')).status); assert.equal(denied, 404);
   const popup = await page.evaluate(() => window.open('https://example.invalid/') === null); assert.equal(popup, true);
   await page.evaluate(() => { location.href = 'https://example.invalid/'; });
