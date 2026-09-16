@@ -2,9 +2,15 @@
 
 Development preview. This is not a public deployment or native-device acceptance.
 
-## Private read state — candidate pending CI
+## Private read state — 2026-09-16
 
-Four new controlled tests pass locally (30 total); all three builds pass. Added a real two-user encrypted Synapse scenario for notification badges, explicit-only private receipts, network-failure retry, a later message during an in-flight receipt, independently queried server counts and own/peer sync privacy. Browser/native CI results are pending; these new protocol assertions have not yet been accepted as passing. See [READ-STATE.md](READ-STATE.md) for notification-count and local-echo limits.
+[PR #9 final CI](https://github.com/TolkmisLK/mutual_chat/actions/runs/35067423712), candidate `e6ffe481987f6937d5427e7c2df966937dc33df5`: all four jobs passed. The 32-test unit suite, three builds, ten Chromium scenarios (3.0 minutes), Windows packaged startup and Linux native encrypted-restart gates passed. The local 32-test suite was rerun successfully during review.
+
+The real two-user encrypted Synapse private-receipt scenario passed in 3.3 seconds. Opening a room sent no receipt. An aborted private receipt showed a retryable error; a later message during a held retry remained unread. Both the independent incremental server-sync observer and displayed count progressed to one and then zero after explicit acknowledgment. The receipt was visible to the same account but neither a private nor public acknowledgment was delivered to the other user's sync. The exact newer event ID was checked, not just the count.
+
+The initial candidate exposed SDK 42.3's stale non-zero total in encrypted rooms. The adapter now reconciles only a fully available decrypted suffix after a server-confirmed room-wide read boundary, using SDK notification actions without mutating host counters or trusting synthetic receipt echoes. Two regression cases use the actual locked SDK Room/MatrixEvent models. A follow-up test correction replaced repeated initial sync (which can return a cached snapshot) with an independent incremental observer. No privacy, new-arrival or failure/retry assertion was removed.
+
+Browser artifact `10434572520` was downloaded and the actual mobile-viewport private-read screenshot inspected: both messages remain visible, the acknowledgment result and controls fit, and the read badge is gone. This is browser/CI evidence, not physical-phone acceptance. See [READ-STATE.md](READ-STATE.md) for notification-count and fallback limits.
 
 ## Account-device management — 2026-09-16
 
