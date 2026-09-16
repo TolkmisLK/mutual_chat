@@ -2,9 +2,11 @@
 
 Development preview. This is not a public deployment or native-device acceptance.
 
-## Local loaded-message search — candidate pending CI
+## Local loaded-message search — 2026-09-17
 
-Added bounded local literal search shared by the widget and standalone app. New unit and controlled browser cases cover match navigation, Unicode/literal text, room reset and stale handlers. The real encrypted two-user scenario additionally searches decrypted messages and checks no search or receipt request is sent. Full execution results for this candidate are pending; see [LOCAL-SEARCH.md](LOCAL-SEARCH.md) for the deliberately limited scope.
+PR #10 candidate `10622a84d246ce4a4843d7959fc42f54f18d7b28` passed [CI 35152713942](https://github.com/TolkmisLK/mutual_chat/actions/runs/35152713942): 36 unit tests, three builds, all 11 Chromium scenarios (3.0 minutes), Windows packaged startup and Linux native encrypted restart. The real encrypted two-user case (26.4 seconds) searches decrypted text without issuing search/read-receipt requests. The controlled embedded case (228 ms) covers navigation, room reset, literal text and stale handlers.
+
+Reviewed artifact `10469439101` including the actual mobile-viewport search capture: the selected match and composer remain visible. The first screenshot exposed ancestor scrolling that clipped the composer; navigation now moves only the message viewport, with explicit outer-scroll/composer-bounds assertions. A review finding also led to an explicit `m.text`/`m.notice`/`m.emote` allowlist and a session regression test excluding attachment captions. Search is local and bounded, not full archive or attachment search; see [LOCAL-SEARCH.md](LOCAL-SEARCH.md).
 
 ## Private read state — 2026-09-16
 
