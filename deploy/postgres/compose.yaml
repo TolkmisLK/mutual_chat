@@ -1,0 +1,29 @@
+services:
+  postgres:
+    image: postgres:17.11-bookworm
+    environment:
+      POSTGRES_PASSWORD_FILE: /run/secrets/admin-password
+      POSTGRES_INITDB_ARGS: --encoding=UTF8 --locale=C --auth-host=scram-sha-256
+    volumes:
+      - database:/var/lib/postgresql/data
+      - ${CHAT_PG_ROOT:?required}/admin-password:/run/secrets/admin-password:ro
+      - ${CHAT_PG_ROOT:?required}/init.sql:/docker-entrypoint-initdb.d/01-synapse.sql:ro
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U postgres -d postgres']
+      interval: 2s
+      timeout: 3s
+      retries: 45
+  synapse:
+    image: matrixdotorg/synapse:v1.160.0
+    user: "${SYNAPSE_UID:-991}:${SYNAPSE_GID:-991}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${CHAT_PG_PORT:?required}:8008"
+    volumes:
+      - ${CHAT_PG_ROOT:?required}/data:/data
+    environment:
+      SYNAPSE_CONFIG_PATH: /data/homeserver.yaml
+volumes:
+  database:
