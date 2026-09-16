@@ -66,9 +66,29 @@ test('two users exchange encrypted messages and read history after server restar
     await bob.getByRole('textbox', { name: '消息', exact: true }).fill(restoredMessage);
     await bob.getByRole('button', { name: '发送', exact: true }).click();
     await expect(alice.getByRole('log')).toContainText(restoredMessage);
+    // Search real decrypted messages locally: no homeserver search/read request.
+    const searchRequests = [];
+    const observeSearch = request => { if (/\/search(?:\?|$)|\/receipt\//.test(request.url())) searchRequests.push(request.url()); };
+    alice.on('request', observeSearch); bob.on('request', observeSearch);
+    await alice.getByLabel('搜索已加载消息', { exact: true }).fill('<script>只作为文本</script>');
+    await expect(alice.locator('.search-state')).toContainText('1 / 1'); await expect(alice.locator('.search-current')).toContainText(reply);
+    await expect(alice.locator('#chat script')).toHaveCount(0);
+    await bob.getByLabel('搜索已加载消息', { exact: true }).fill(first);
+    await expect(bob.locator('.search-state')).toContainText('1 / 1'); await expect(bob.locator('.search-current')).toContainText(first);
+    await bob.getByRole('button', { name: '下一处', exact: true }).click(); await expect(bob.locator('.search-current')).toContainText(first);
+    expect(await bob.evaluate(term => Object.values(localStorage).some(value => value.includes(term)), first)).toBe(false);
+    expect(searchRequests).toEqual([]);
+    const composerBounds = await bob.locator('#chat').evaluate(node => {
+      const root = node.firstElementChild.shadowRoot;
+      const desk = root.querySelector('.desk'); const form = root.querySelector('section > form');
+      return { outerScroll: desk.scrollTop, formBottom: form.getBoundingClientRect().bottom, deskBottom: desk.getBoundingClientRect().bottom };
+    });
+    expect(composerBounds.outerScroll).toBe(0); expect(composerBounds.formBottom).toBeLessThanOrEqual(composerBounds.deskBottom + 1);
     expect(await bob.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     // Device verification, key backup and lost-device recovery remain separate gates.
     await alice.screenshot({ path: info.outputPath('encrypted-desktop.png'), fullPage: true });
     await bob.screenshot({ path: info.outputPath('encrypted-mobile-viewport.png'), fullPage: true });
+    await bob.getByRole('button', { name: '清除搜索', exact: true }).click(); await expect(bob.locator('.search-match')).toHaveCount(0);
+    await expect(bob.getByRole('log')).toContainText(first); await expect(bob.getByRole('log')).toContainText(after);
   } finally { await a.close(); await b.close(); }
 });
