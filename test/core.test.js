@@ -80,3 +80,43 @@ test('failed pagination is retryable and disposed adapters ignore pending comple
   assert.equal(session.historyState(room.roomId).canLoad, false); await assert.rejects(session.loadEarlier(room.roomId));
   assert.equal(client.listenerCount('Room.timeline'), 0);
 });
+
+test('unread notifications are SDK-derived and receipt subscriptions detach', () => {
+  const { client, room, session } = fake(); let count = 3; let updates = 0;
+  room.getUnreadNotificationCount = type => { assert.equal(type, 'total'); return count; };
+  session.subscribe(() => updates++); assert.equal(session.rooms()[0].unread, 3);
+  for (const invalid of [-1, Infinity, NaN, '2']) { count = invalid; assert.equal(session.rooms()[0].unread, 0); }
+  client.emit('Room.UnreadNotifications'); client.emit('Room.receipt'); assert.equal(updates, 2);
+  session.dispose(); assert.equal(client.listenerCount('Room.receipt'), 0); assert.equal(client.listenerCount('Room.UnreadNotifications'), 0);
+});
+
+test('explicit private receipt captures event and coalesces concurrent requests without touching newer arrivals', async () => {
+  const { client, room, session } = fake(); const events = [historyEvent(1)]; let finish; const calls = [];
+  room.getLiveTimeline = () => ({ getEvents: () => events });
+  client.sendReadReceipt = (...args) => { calls.push(args); return new Promise(resolve => { finish = resolve; }); };
+  assert.deepEqual(session.readState(room.roomId), { eventId: '$1', loading: false }); assert.equal(calls.length, 0);
+  const pending = session.markRead(room.roomId, '$1'); events.push(historyEvent(2));
+  assert.equal(session.markRead(room.roomId, '$2'), pending); await Promise.resolve();
+  assert.deepEqual(calls[0], [events[0], 'm.read.private', true]); assert.equal(session.readState(room.roomId).loading, true);
+  finish(); await pending; assert.equal(session.readState(room.roomId).loading, false); assert.equal(session.readState(room.roomId).eventId, '$2'); assert.equal(calls.length, 1);
+});
+
+test('private receipt rejects invalid targets, retries failure, and does not fall back to public receipts', async () => {
+  const { client, room, session } = fake(); const event = historyEvent(1); let failed = true; let calls = 0;
+  room.getLiveTimeline = () => ({ getEvents: () => [event] }); client.sendReadReceipt = async (target, type) => { calls++; assert.equal(type, 'm.read.private'); if (failed) throw Error('unsupported private receipt'); };
+  await assert.rejects(session.markRead('!missing', '$1')); await assert.rejects(session.markRead(room.roomId, '$unknown'));
+  event.isDecryptionFailure = () => true; assert.equal(session.readState(room.roomId).eventId, null); await assert.rejects(session.markRead(room.roomId, '$1'));
+  event.isDecryptionFailure = () => false; event.status = 'sending'; await assert.rejects(session.markRead(room.roomId, '$1'));
+  event.status = null; event.getSender = () => client.getUserId(); await assert.rejects(session.markRead(room.roomId, '$1'));
+  event.getSender = () => '@other:example.org'; client.emit('sync', 'ERROR'); await assert.rejects(session.markRead(room.roomId, '$1')); client.emit('sync', 'SYNCING');
+  assert.equal(calls, 0); await assert.rejects(session.markRead(room.roomId, '$1'), /unsupported/); assert.equal(calls, 1); assert.equal(session.readState(room.roomId).loading, false);
+  failed = false; await session.markRead(room.roomId, '$1'); assert.equal(calls, 2);
+});
+
+test('disposing receipt adapter suppresses late callbacks without stopping host client', async () => {
+  const { client, room, session } = fake(); const event = historyEvent(1); let finish; let updates = 0;
+  room.getLiveTimeline = () => ({ getEvents: () => [event] }); client.sendReadReceipt = () => new Promise(resolve => { finish = resolve; });
+  client.stopClient = () => { throw Error('host ownership'); }; session.subscribe(() => updates++);
+  const request = session.markRead(room.roomId, '$1'); await Promise.resolve(); session.dispose(); const before = updates;
+  finish(); await request; assert.equal(updates, before); await assert.rejects(session.markRead(room.roomId, '$1'));
+});

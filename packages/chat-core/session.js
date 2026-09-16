@@ -2,16 +2,41 @@
 export class ChatSession {
   constructor(client) {
     this.client = client; this.listeners = new Set(); this.ready = false; this.closed = false;
-    this.history = new Map();
+    this.history = new Map(); this.reading = new Map();
     this.changed = () => { for (const fn of this.listeners) fn(); };
     this.sync = state => { this.ready = ['PREPARED', 'SYNCING'].includes(state); this.changed(); };
-    this.bindings = [['sync', this.sync], ['Room.timeline', this.changed], ['Room', this.changed], ['Event.decrypted', this.changed], ['Room.name', this.changed], ['Room.myMembership', this.changed]];
+    this.bindings = [['sync', this.sync], ['Room.timeline', this.changed], ['Room', this.changed], ['Event.decrypted', this.changed], ['Room.name', this.changed], ['Room.myMembership', this.changed], ['Room.UnreadNotifications', this.changed], ['Room.receipt', this.changed]];
     for (const [event, fn] of this.bindings) client.on(event, fn);
     this.ready = ['PREPARED', 'SYNCING'].includes(client.getSyncState?.());
   }
   subscribe(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
   rooms() {
-    return this.client.getRooms().filter(r => ['join', 'invite'].includes(r.getMyMembership())).map(r => ({ id: r.roomId, name: r.name || r.roomId, membership: r.getMyMembership(), encrypted: r.hasEncryptionStateEvent() }));
+    return this.client.getRooms().filter(r => ['join', 'invite'].includes(r.getMyMembership())).map(r => {
+      const count = r.getUnreadNotificationCount?.('total');
+      return { id: r.roomId, name: r.name || r.roomId, membership: r.getMyMembership(), encrypted: r.hasEncryptionStateEvent(), unread: Number.isSafeInteger(count) && count > 0 ? count : 0 };
+    });
+  }
+  readState(roomId) {
+    const room = this.client.getRoom(roomId);
+    const latest = room?.getMyMembership() === 'join' ? this.messageEvents(room).findLast(e => e.getSender() !== this.client.getUserId() && !e.status && e.getId()?.startsWith('$')) : null;
+    // Never mark a missing-key placeholder as read. The UI captures this exact
+    // displayed event ID: a newer arrival cannot silently extend the request.
+    const eventId = latest && !latest.isDecryptionFailure?.() && latest.getType() !== 'm.room.encrypted' ? latest.getId() : null;
+    return { eventId, loading: this.reading.has(roomId) };
+  }
+  markRead(roomId, eventId) {
+    if (this.closed || !this.ready) return Promise.reject(new Error('请等待聊天同步完成后重试。'));
+    const pending = this.reading.get(roomId); if (pending) return pending;
+    const room = this.client.getRoom(roomId);
+    const event = room?.getMyMembership() === 'join' ? this.messageEvents(room).find(e => e.getId() === eventId) : null;
+    if (!event || !eventId?.startsWith('$') || event.status || event.getSender() === this.client.getUserId() || event.isDecryptionFailure?.() || event.getType() === 'm.room.encrypted') return Promise.reject(new Error('请先选择已解密的已接收消息。'));
+    const request = Promise.resolve().then(() => {
+      if (this.closed) return;
+      // Private, room-wide receipt. No public receipt or fully-read account
+      // marker, no automatic fallback if the server rejects this receipt type.
+      return this.client.sendReadReceipt(event, 'm.read.private', true);
+    }).finally(() => { this.reading.delete(roomId); if (!this.closed) this.changed(); });
+    this.reading.set(roomId, request); this.changed(); return request;
   }
   messages(roomId) {
     const room = this.client.getRoom(roomId);
@@ -75,7 +100,7 @@ export class ChatSession {
     return this.client.joinRoom(roomId);
   }
   dispose() {
-    if (this.closed) return; this.closed = true; this.ready = false; this.history.clear();
+    if (this.closed) return; this.closed = true; this.ready = false; this.history.clear(); this.reading.clear();
     for (const [event, fn] of this.bindings) this.client.removeListener(event, fn);
     this.listeners.clear();
     // Ownership remains with the host: unmounting an embedded panel never logs it out.
