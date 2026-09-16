@@ -25,7 +25,7 @@ Backups contain **database credentials, registration secrets, access tokens and 
 
 ## Acceptance
 
-`npx playwright test --config playwright.postgres.config.js` creates unique disposable projects and directories, runs actual Chromium users against Synapse/PostgreSQL, uploads generated media, rehearses restore into an independent database, checks ciphertext event IDs and authenticated media bytes, confirms one-time-key exclusion and verifies the source still exchanges encrypted messages. Cleanup removes only those generated projects/volumes. No trace, SQL, service data or secret-bearing report is uploaded. Current candidate CI results are pending; local configuration tests alone are not database acceptance.
+`npx playwright test --config playwright.postgres.config.js` creates unique disposable projects and directories, runs actual Chromium users against Synapse/PostgreSQL, uploads generated media, rehearses restore into an independent database, checks ciphertext event IDs and authenticated media bytes, confirms one-time-key exclusion and verifies the source still exchanges encrypted messages. Cleanup removes only those generated projects/volumes. No trace, SQL, service data or secret-bearing report is uploaded. The final PR #11 candidate passed the dedicated real-service scenario in 1.0 minute and all application checks; exact commits and evidence are recorded in [VALIDATION.md](VALIDATION.md).
 
 Still required for deployment: authorized hostname and trusted TLS, restricted account provisioning, remote/offsite encrypted backup retention, disk monitoring, restore-time objectives, hardening for the deployment host and independent security review. No public deployment or paid resource was created.
 
