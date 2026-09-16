@@ -99,7 +99,14 @@ export function mountChat(container, { client, session: providedSession }) {
     catch { if (selected === target) status('历史加载失败，请检查连接后重试。'); }
     finally { render(); }
   };
-  const revealSearchHit = () => { if (!stopped) q('.search-current')?.scrollIntoView({ block: 'nearest' }); };
+  const revealSearchHit = () => {
+    if (stopped) return; const hit = q('.search-current'); if (!hit) return;
+    // Only scroll the message viewport. scrollIntoView can also scroll the
+    // overflow-hidden outer desk, clipping its composer on a narrow screen.
+    const messages = q('.messages'); const viewport = messages.getBoundingClientRect(); const bounds = hit.getBoundingClientRect();
+    if (bounds.top < viewport.top) messages.scrollTop += bounds.top - viewport.top - 4;
+    else if (bounds.bottom > viewport.bottom) messages.scrollTop += bounds.bottom - viewport.bottom + 4;
+  };
   q('.search-query').oninput = () => { if (stopped) return; searchHit = null; render(); revealSearchHit(); };
   const moveSearch = delta => {
     if (stopped || !searchHits.length) return;

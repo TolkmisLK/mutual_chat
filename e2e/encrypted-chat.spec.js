@@ -78,6 +78,12 @@ test('two users exchange encrypted messages and read history after server restar
     await bob.getByRole('button', { name: '下一处', exact: true }).click(); await expect(bob.locator('.search-current')).toContainText(first);
     expect(await bob.evaluate(term => Object.values(localStorage).some(value => value.includes(term)), first)).toBe(false);
     expect(searchRequests).toEqual([]);
+    const composerBounds = await bob.locator('#chat').evaluate(node => {
+      const root = node.firstElementChild.shadowRoot;
+      const desk = root.querySelector('.desk'); const form = root.querySelector('section > form');
+      return { outerScroll: desk.scrollTop, formBottom: form.getBoundingClientRect().bottom, deskBottom: desk.getBoundingClientRect().bottom };
+    });
+    expect(composerBounds.outerScroll).toBe(0); expect(composerBounds.formBottom).toBeLessThanOrEqual(composerBounds.deskBottom + 1);
     expect(await bob.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     // Device verification, key backup and lost-device recovery remain separate gates.
     await alice.screenshot({ path: info.outputPath('encrypted-desktop.png'), fullPage: true });
