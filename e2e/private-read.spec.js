@@ -46,10 +46,21 @@ test('encrypted unread state changes only on explicit private receipt, retry pre
     const firstTarget = receipts[1]; await send('请求进行中到达的新消息 ' + suffix);
     await expect(bob.locator('.unread')).toContainText('未读 2');
     release(); release = null; await expect(bob.locator('.status')).toContainText('已更新私人已读位置');
-    const unread = async () => (await sync(b)).rooms.join[roomId].unread_notifications.notification_count;
+    // Keep an independent incremental observer. Repeating the identical initial
+    // sync can replay a cached snapshot rather than observe later receipts.
+    let observerToken = ownBaseline.next_batch; let observedCount;
+    const unread = async () => {
+      const data = await sync(b, observerToken); observerToken = data.next_batch;
+      const count = data.rooms?.join?.[roomId]?.unread_notifications?.notification_count;
+      if (count !== undefined) observedCount = count;
+      return observedCount;
+    };
     await expect.poll(unread).toBe(1); await expect(bob.locator('.unread')).toContainText('未读 1');
-    await button.click(); await expect(bob.locator('.status')).toContainText('已更新私人已读位置'); await expect.poll(unread).toBe(0);
-    await expect(bob.locator('.unread')).toHaveCount(0); expect(receipts).toHaveLength(3); expect(receipts[2]).not.toBe(firstTarget);
+    const nextTarget = await button.getAttribute('data-event-id');
+    const accepted = bob.waitForResponse(r => r.url().includes('/receipt/m.read.private/') && r.request().method() === 'POST' && r.status() === 200);
+    await button.click(); await accepted; await expect(bob.locator('.status')).toContainText('已更新私人已读位置');
+    expect(receipts).toHaveLength(3); expect(receipts[2]).not.toBe(firstTarget); expect(decodeURIComponent(receipts[2].split('/').at(-1))).toBe(nextTarget);
+    await expect.poll(unread).toBe(0); await expect(bob.locator('.unread')).toHaveCount(0);
     expect(receipts.every(url => url.includes('/receipt/m.read.private/'))).toBe(true);
     const own = await sync(b, ownBaseline.next_batch); const peer = await sync(a, peerBaseline.next_batch);
     const privateReaders = data => (data.rooms?.join?.[roomId]?.ephemeral?.events || []).filter(e => e.type === 'm.receipt').flatMap(e => Object.values(e.content)).flatMap(types => Object.keys(types['m.read.private'] || {}));
