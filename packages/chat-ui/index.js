@@ -12,7 +12,7 @@ export function mountChat(container, { client, session: providedSession }) {
   const q = s => root.querySelector(s); let selected; let sending = false; let stopped = false; let wasReady = session.ready;
   let renderedRoom;
   const historyBar = document.createElement('div'); historyBar.className = 'history';
-  historyBar.innerHTML = '<button type="button" class="earlier" hidden>加载更早消息</button><span class="history-state" role="status"></span>';
+  historyBar.innerHTML = '<button type="button" class="earlier" hidden>加载更早消息</button><button type="button" class="mark-read" hidden title="将当前已加载的最新已接收消息及此前消息标为已读；不向其他成员公开回执">标为已读（仅自己）</button><span class="history-state" role="status"></span>';
   q('section').insertBefore(historyBar, q('.messages'));
   q('style').textContent += '.history{padding:8px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12px}.history[hidden]{display:none}.history button{font-size:13px}.messages{overflow-anchor:none}';
   const creation = document.createElement('dialog'); creation.className = 'create-dialog';
@@ -26,6 +26,8 @@ export function mountChat(container, { client, session: providedSession }) {
     for (const room of rooms) {
       const b = document.createElement('button'); b.className = 'room'; b.setAttribute('aria-pressed', String(room.id === selected));
       b.textContent = `${room.membership === 'invite' ? '邀请 · ' : ''}${room.name}`;
+      b.setAttribute('aria-label', b.textContent);
+      if (room.unread > 0 && room.membership === 'join') { const badge = document.createElement('span'); badge.className = 'unread'; badge.textContent = ` · 未读 ${room.unread > 999 ? '999+' : room.unread}`; b.append(badge); b.title = `${room.unread} 条未读通知（按服务器和通知规则）`; }
       b.onclick = async () => {
         if (stopped) return;
         try {
@@ -55,6 +57,10 @@ export function mountChat(container, { client, session: providedSession }) {
     historyBar.hidden = !current || !history;
     q('.earlier').hidden = !history?.canLoad && !history?.loading;
     q('.earlier').disabled = !session.ready || history?.loading === true;
+    const read = current ? session.readState?.(selected) : null;
+    q('.mark-read').hidden = !read;
+    q('.mark-read').disabled = !session.ready || !read?.eventId || read.loading;
+    q('.mark-read').dataset.eventId = read?.eventId || '';
     q('.history-state').textContent = history?.loading ? '正在加载更早消息…' : history?.capped ? '当前最多显示最近 1000 条消息。' : history && !history.canLoad ? '已到当前可访问历史的开头。' : '';
     q('form button').disabled = sending || !current || !session.ready;
     q('.create').disabled = !session.ready;
@@ -75,6 +81,14 @@ export function mountChat(container, { client, session: providedSession }) {
     status('');
     try { await session.loadEarlier(target); }
     catch { if (selected === target) status('历史加载失败，请检查连接后重试。'); }
+    finally { render(); }
+  };
+  q('.mark-read').onclick = async () => {
+    if (stopped || !selected) return;
+    const target = selected; const eventId = q('.mark-read').dataset.eventId;
+    status('');
+    try { await session.markRead(target, eventId); if (selected === target) status('已更新私人已读位置。新到消息需另行标记。'); }
+    catch { if (selected === target) status('已读位置未获服务器确认，请重试；显示的未读数不代表请求成功。'); }
     finally { render(); }
   };
   q('.create').onclick = () => { if (!stopped && !creating) { q('.create-error').textContent = ''; creation.showModal(); } };

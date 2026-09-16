@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
+import { createClient, Room, MatrixEvent } from 'matrix-js-sdk';
 import { ChatSession, validateHomeserver } from '../packages/chat-core/session.js';
 
 function fake() {
@@ -79,4 +80,85 @@ test('failed pagination is retryable and disposed adapters ignore pending comple
   session.dispose(); const baseline = changes; finish(); await pending; assert.equal(changes, baseline);
   assert.equal(session.historyState(room.roomId).canLoad, false); await assert.rejects(session.loadEarlier(room.roomId));
   assert.equal(client.listenerCount('Room.timeline'), 0);
+});
+
+test('unread notifications are SDK-derived and receipt subscriptions detach', () => {
+  const { client, room, session } = fake(); let count = 3; let updates = 0;
+  room.getUnreadNotificationCount = type => { assert.equal(type, 'total'); return count; };
+  session.subscribe(() => updates++); assert.equal(session.rooms()[0].unread, 3);
+  for (const invalid of [-1, Infinity, NaN, '2']) { count = invalid; assert.equal(session.rooms()[0].unread, 0); }
+  client.emit('Room.UnreadNotifications'); client.emit('Room.receipt'); assert.equal(updates, 2);
+  session.dispose(); assert.equal(client.listenerCount('Room.receipt'), 0); assert.equal(client.listenerCount('Room.UnreadNotifications'), 0);
+});
+
+test('real SDK receipts reconcile encrypted totals only after server confirmation, preserving newer arrivals', () => {
+  const userId = '@me:example.org'; const roomId = '!read:example.org';
+  const client = createClient({ baseUrl: 'https://example.org', userId });
+  const room = new Room(roomId, client, userId);
+  client.getRooms = () => [room]; client.getRoom = () => room;
+  room.hasEncryptionStateEvent = () => true; room.getMyMembership = () => 'join';
+  client.getPushActionsForEvent = event => ({ notify: event.getContent().msgtype !== 'm.notice', tweaks: {} });
+  const event = (id, msgtype = 'm.text') => new MatrixEvent({ event_id: id, room_id: roomId, sender: '@other:example.org', type: 'm.room.message', origin_server_ts: 1, content: { msgtype, body: id } });
+  const first = event('$first'); const second = event('$second');
+  room.addLiveEvents([first, second], { addToState: false }); room.setUnreadNotificationCount('total', 2);
+  const session = new ChatSession(client);
+  room.addLocalEchoReceipt(userId, first, 'm.read.private', true);
+  assert.equal(session.rooms()[0].unread, 2, 'aborted/held HTTP receipt cannot clear notifications');
+  const acknowledge = target => room.addReceipt(new MatrixEvent({ type: 'm.receipt', room_id: roomId, content: { [target]: { 'm.read.private': { [userId]: { ts: 2 } } } } }));
+  acknowledge('$first');
+  assert.equal(room.getUnreadNotificationCount('total'), 2, 'locked SDK reproduces stale total');
+  assert.equal(session.rooms()[0].unread, 1);
+  room.addLiveEvents([event('$notice', 'm.notice'), event('$third')], { addToState: false });
+  assert.equal(session.rooms()[0].unread, 2, 'count SDK push actions, not every timeline event');
+  acknowledge('$third'); assert.equal(session.rooms()[0].unread, 0);
+  assert.equal(room.getUnreadNotificationCount('total'), 2, 'adapter never mutates host counters'); session.dispose();
+});
+
+test('unread reconciliation preserves SDK count for incomplete, encrypted or threaded suffixes', () => {
+  const { client, room, session } = fake(); let events = [historyEvent(1), historyEvent(2)];
+  room.getUnreadNotificationCount = () => 7; room.getLiveTimeline = () => ({ getEvents: () => events });
+  client.getPushActionsForEvent = () => ({ notify: true });
+  room.getEventReadUpTo = (user, ignore) => { assert.equal(ignore, true); return '$1'; };
+  room.getReadReceiptForUserId = (user, ignore, type) => { assert.equal(ignore, true); return type === 'm.read.private' ? { eventId: '$1', data: {} } : null; };
+  assert.equal(session.rooms()[0].unread, 1);
+  events = [historyEvent(2)]; assert.equal(session.rooms()[0].unread, 7);
+  events = [historyEvent(1), historyEvent(2)]; events[1].isDecryptionFailure = () => true; assert.equal(session.rooms()[0].unread, 7);
+  events[1] = historyEvent(2); events[1].getType = () => 'm.room.encrypted'; assert.equal(session.rooms()[0].unread, 7);
+  events[1] = historyEvent(2); events[1].threadRootId = '$thread'; assert.equal(session.rooms()[0].unread, 7);
+  events[1] = historyEvent(2); room.getThreads = () => [{}]; assert.equal(session.rooms()[0].unread, 7);
+  room.getThreads = () => []; client.getPushActionsForEvent = () => undefined; assert.equal(session.rooms()[0].unread, 7);
+  client.getPushActionsForEvent = () => ({ notify: true }); events.push(events[1]); assert.equal(session.rooms()[0].unread, 1);
+  events = Array.from({ length: 1002 }, (_, i) => historyEvent(i + 1)); assert.equal(session.rooms()[0].unread, 7);
+  session.dispose();
+});
+
+test('explicit private receipt captures event and coalesces concurrent requests without touching newer arrivals', async () => {
+  const { client, room, session } = fake(); const events = [historyEvent(1)]; let finish; const calls = [];
+  room.getLiveTimeline = () => ({ getEvents: () => events });
+  client.sendReadReceipt = (...args) => { calls.push(args); return new Promise(resolve => { finish = resolve; }); };
+  assert.deepEqual(session.readState(room.roomId), { eventId: '$1', loading: false }); assert.equal(calls.length, 0);
+  const pending = session.markRead(room.roomId, '$1'); events.push(historyEvent(2));
+  assert.equal(session.markRead(room.roomId, '$2'), pending); await Promise.resolve();
+  assert.deepEqual(calls[0], [events[0], 'm.read.private', true]); assert.equal(session.readState(room.roomId).loading, true);
+  finish(); await pending; assert.equal(session.readState(room.roomId).loading, false); assert.equal(session.readState(room.roomId).eventId, '$2'); assert.equal(calls.length, 1);
+});
+
+test('private receipt rejects invalid targets, retries failure, and does not fall back to public receipts', async () => {
+  const { client, room, session } = fake(); const event = historyEvent(1); let failed = true; let calls = 0;
+  room.getLiveTimeline = () => ({ getEvents: () => [event] }); client.sendReadReceipt = async (target, type) => { calls++; assert.equal(type, 'm.read.private'); if (failed) throw Error('unsupported private receipt'); };
+  await assert.rejects(session.markRead('!missing', '$1')); await assert.rejects(session.markRead(room.roomId, '$unknown'));
+  event.isDecryptionFailure = () => true; assert.equal(session.readState(room.roomId).eventId, null); await assert.rejects(session.markRead(room.roomId, '$1'));
+  event.isDecryptionFailure = () => false; event.status = 'sending'; await assert.rejects(session.markRead(room.roomId, '$1'));
+  event.status = null; event.getSender = () => client.getUserId(); await assert.rejects(session.markRead(room.roomId, '$1'));
+  event.getSender = () => '@other:example.org'; client.emit('sync', 'ERROR'); await assert.rejects(session.markRead(room.roomId, '$1')); client.emit('sync', 'SYNCING');
+  assert.equal(calls, 0); await assert.rejects(session.markRead(room.roomId, '$1'), /unsupported/); assert.equal(calls, 1); assert.equal(session.readState(room.roomId).loading, false);
+  failed = false; await session.markRead(room.roomId, '$1'); assert.equal(calls, 2);
+});
+
+test('disposing receipt adapter suppresses late callbacks without stopping host client', async () => {
+  const { client, room, session } = fake(); const event = historyEvent(1); let finish; let updates = 0;
+  room.getLiveTimeline = () => ({ getEvents: () => [event] }); client.sendReadReceipt = () => new Promise(resolve => { finish = resolve; });
+  client.stopClient = () => { throw Error('host ownership'); }; session.subscribe(() => updates++);
+  const request = session.markRead(room.roomId, '$1'); await Promise.resolve(); session.dispose(); const before = updates;
+  finish(); await request; assert.equal(updates, before); await assert.rejects(session.markRead(room.roomId, '$1'));
 });

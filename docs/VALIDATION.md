@@ -2,6 +2,10 @@
 
 Development preview. This is not a public deployment or native-device acceptance.
 
+## Private read state — candidate pending CI
+
+Four new controlled tests pass locally (30 total); all three builds pass. Added a real two-user encrypted Synapse scenario for notification badges, explicit-only private receipts, network-failure retry, a later message during an in-flight receipt, independently queried server counts and own/peer sync privacy. Browser/native CI results are pending; these new protocol assertions have not yet been accepted as passing. See [READ-STATE.md](READ-STATE.md) for notification-count and local-echo limits.
+
 ## Account-device management — 2026-09-16
 
 [PR #8 CI](https://github.com/TolkmisLK/mutual_chat/actions/runs/35028377496), candidate `82a82ab7508d343ea8bdfa69b4ed94557df660bb`: all four jobs passed. Windows and Linux unit gates pass 26 tests, the three Web builds pass, and nine real Chromium scenarios pass in 3.0 minutes. Windows packaged-window and Linux native encrypted restart gates also pass again.
