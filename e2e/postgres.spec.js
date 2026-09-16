@@ -49,6 +49,8 @@ test('PostgreSQL encrypted exchange, cold media snapshot and fresh-volume restor
     expect(ids.length).toBeGreaterThan(0); expect(JSON.stringify(history)).not.toContain(message);
     const media = randomBytes(65537); const upload = await (await request(source.base, '/_matrix/media/v3/upload', alice.auth, { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: media })).json();
     const [server, id] = upload.content_uri.slice(6).split('/'); const mediaPath = '/_matrix/client/v1/media/download/' + encodeURIComponent(server) + '/' + encodeURIComponent(id);
+    const sourceKeys = await compose(source, ['exec', '-T', 'postgres', 'psql', '-U', 'postgres', '-d', 'synapse', '-Atc', 'SELECT count(*) FROM e2e_one_time_keys_json'], { capture: true });
+    expect(Number(sourceKeys.trim())).toBeGreaterThan(0); // prove exclusion, not an already-empty table
     const backup = path.join(root, 'snapshot'); await snapshotPostgres(source, backup);
     await expect(bob.page.getByRole('button', { name: '发送', exact: true })).toBeEnabled();
     restored = await restorePostgres(backup, path.join(root, 'restored'), 18019);
