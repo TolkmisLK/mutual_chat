@@ -2,6 +2,10 @@
 
 Development preview. This is not a public deployment or native-device acceptance.
 
+## Local loaded-message search — candidate pending CI
+
+Added bounded local literal search shared by the widget and standalone app. New unit and controlled browser cases cover match navigation, Unicode/literal text, room reset and stale handlers. The real encrypted two-user scenario additionally searches decrypted messages and checks no search or receipt request is sent. Full execution results for this candidate are pending; see [LOCAL-SEARCH.md](LOCAL-SEARCH.md) for the deliberately limited scope.
+
 ## Private read state — 2026-09-16
 
 [PR #9 final CI](https://github.com/TolkmisLK/mutual_chat/actions/runs/35067423712), candidate `e6ffe481987f6937d5427e7c2df966937dc33df5`: all four jobs passed. The 32-test unit suite, three builds, ten Chromium scenarios (3.0 minutes), Windows packaged startup and Linux native encrypted-restart gates passed. The local 32-test suite was rerun successfully during review.

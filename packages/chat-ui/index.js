@@ -1,4 +1,5 @@
 import { ChatSession } from '../chat-core/session.js';
+import { searchLoadedMessages } from '../chat-core/search.js';
 export { ChatSession } from '../chat-core/session.js';
 
 export function mountChat(container, { client, session: providedSession }) {
@@ -11,6 +12,11 @@ export function mountChat(container, { client, session: providedSession }) {
   </style><div class="desk"><aside><h2>Mutual Chat</h2><div class="rooms"></div><button class="create">新建会话</button></aside><section><header>选择一个会话</header><div class="messages" role="log" aria-live="polite"></div><p class="status" role="status"></p><form><textarea aria-label="消息" maxlength="10000" placeholder="输入消息" rows="2"></textarea><button>发送</button></form></section></div>`;
   const q = s => root.querySelector(s); let selected; let sending = false; let stopped = false; let wasReady = session.ready;
   let renderedRoom;
+  let searchHit = null; let searchHits = [];
+  const searchBar = document.createElement('div'); searchBar.className = 'message-search';
+  searchBar.innerHTML = '<label>搜索已加载消息<input type="search" class="search-query" maxlength="200" autocomplete="off" spellcheck="false" aria-label="搜索已加载消息"></label><button type="button" class="search-prev">上一处</button><button type="button" class="search-next">下一处</button><button type="button" class="search-clear">清除搜索</button><span class="search-state" role="status"></span>';
+  q('section').insertBefore(searchBar, q('.messages'));
+  q('style').textContent += '.message-search{padding:8px 16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px}.message-search[hidden]{display:none}.message-search label{flex:1;min-width:150px}.search-query{display:block;width:100%;padding:7px;font:inherit;border:1px solid #bfd2df;border-radius:6px;background:transparent;color:inherit}.message-search button{font-size:12px;padding:7px}.search-state{width:100%}.message.search-match{border-color:#bb8310}.message.search-current{outline:2px solid #bb8310;outline-offset:2px}';
   const historyBar = document.createElement('div'); historyBar.className = 'history';
   historyBar.innerHTML = '<button type="button" class="earlier" hidden>加载更早消息</button><button type="button" class="mark-read" hidden title="将当前已加载的最新已接收消息及此前消息标为已读；不向其他成员公开回执">标为已读（仅自己）</button><span class="history-state" role="status"></span>';
   q('section').insertBefore(historyBar, q('.messages'));
@@ -37,6 +43,14 @@ export function mountChat(container, { client, session: providedSession }) {
       }; q('.rooms').append(b);
     }
     const current = rooms.find(r => r.id === selected && r.membership === 'join');
+    searchBar.hidden = !current;
+    if (renderedRoom !== selected) { q('.search-query').value = ''; searchHit = null; }
+    const loaded = current ? session.messages(selected) : [];
+    searchHits = searchLoadedMessages(loaded, q('.search-query').value);
+    if (!searchHits.includes(searchHit)) searchHit = searchHits[0] || null;
+    q('.search-prev').disabled = q('.search-next').disabled = searchHits.length === 0;
+    q('.search-clear').disabled = q('.search-query').value.length === 0;
+    q('.search-state').textContent = q('.search-query').value.trim() ? (searchHits.length ? `${searchHits.indexOf(searchHit) + 1} / ${searchHits.length} 处匹配 · 仅本机已加载的消息` : '已加载的消息中没有匹配。可先加载更早消息再查找。') : '仅在本机查找，不搜索服务器或自动加载历史。';
     q('header').textContent = current ? `${current.name} · ${current.encrypted ? '端到端加密会话' : '未加密会话'}` : '选择一个会话';
     const messages = q('.messages'); const atEnd = messages.scrollHeight - messages.scrollTop - messages.clientHeight < 80;
     const history = current ? session.historyState?.(selected) : null;
@@ -44,9 +58,11 @@ export function mountChat(container, { client, session: providedSession }) {
     const anchor = sameRoom && (!atEnd || history?.loading) ? [...messages.children].find(node => node.getBoundingClientRect().bottom > messages.getBoundingClientRect().top) : null;
     const anchorId = anchor?.dataset.eventId; const anchorTop = anchor?.getBoundingClientRect().top;
     messages.replaceChildren();
-    for (const message of current ? session.messages(selected) : []) {
+    for (const message of loaded) {
       const bubble = document.createElement('div'); bubble.className = `message ${message.mine ? 'mine' : ''}`;
       if (message.id) bubble.dataset.eventId = message.id;
+      if (searchHits.includes(message.id)) bubble.classList.add('search-match');
+      if (message.id === searchHit) { bubble.classList.add('search-current'); bubble.setAttribute('aria-current', 'true'); }
       const sender = document.createElement('span'); sender.className = 'sender'; sender.textContent = `${message.sender} · ${new Date(message.time).toLocaleTimeString()}${message.status === 'sent' ? '' : ` · ${message.status}`}`;
       const body = document.createElement('span'); body.textContent = message.text; bubble.append(sender, body); messages.append(bubble);
     }
@@ -83,6 +99,15 @@ export function mountChat(container, { client, session: providedSession }) {
     catch { if (selected === target) status('历史加载失败，请检查连接后重试。'); }
     finally { render(); }
   };
+  const revealSearchHit = () => { if (!stopped) q('.search-current')?.scrollIntoView({ block: 'nearest' }); };
+  q('.search-query').oninput = () => { if (stopped) return; searchHit = null; render(); revealSearchHit(); };
+  const moveSearch = delta => {
+    if (stopped || !searchHits.length) return;
+    searchHit = searchHits[(searchHits.indexOf(searchHit) + delta + searchHits.length) % searchHits.length]; render(); revealSearchHit();
+  };
+  q('.search-prev').onclick = () => moveSearch(-1);
+  q('.search-next').onclick = () => moveSearch(1);
+  q('.search-clear').onclick = () => { if (!stopped) { q('.search-query').value = ''; searchHit = null; render(); q('.search-query').focus(); } };
   q('.mark-read').onclick = async () => {
     if (stopped || !selected) return;
     const target = selected; const eventId = q('.mark-read').dataset.eventId;
@@ -110,6 +135,7 @@ export function mountChat(container, { client, session: providedSession }) {
     if (stopped) return;
     stopped = true; unsubscribe(); if (!providedSession) session.dispose();
     for (const form of root.querySelectorAll('form')) form.onsubmit = null;
+    q('.search-query').oninput = null;
     creation.removeEventListener('cancel', cancelCreation);
     creation.close();
     for (const button of root.querySelectorAll('button')) button.onclick = null;
