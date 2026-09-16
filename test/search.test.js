@@ -1,6 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { searchLoadedMessages } from '../packages/chat-core/search.js';
+import { ChatSession } from '../packages/chat-core/session.js';
+
+test('session search includes only textual message types, not attachment filenames', () => {
+  const types = ['m.text', 'm.notice', 'm.emote', 'm.image', 'm.file', 'm.audio', 'm.video', 'm.location', undefined];
+  const events = types.map((msgtype, i) => ({ getId: () => '$' + i, getSender: () => '@other:localhost', getTs: () => i,
+    getType: () => 'm.room.message', getContent: () => ({ msgtype, body: 'needle' }), isRedacted: () => false }));
+  const client = { on() {}, removeListener() {}, getUserId: () => '@me:localhost', getRoom: () => ({ getMyMembership: () => 'join', getLiveTimeline: () => ({ getEvents: () => events }) }) };
+  const session = new ChatSession(client);
+  try { assert.deepEqual(searchLoadedMessages(session.messages('!room'), 'needle'), ['$0', '$1', '$2']); }
+  finally { session.dispose(); }
+});
 
 test('local search matches literal Unicode text, case-insensitively, without interpreting patterns', () => {
   const messages = [{ id: '$1', text: '你好 CAFÉ [a.*] <script>' }, { id: '$2', text: 'Cafe\u0301 第二条' }];
