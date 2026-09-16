@@ -9,8 +9,9 @@ import { waitForServer } from './local-server.js';
 const composeFile = fileURLToPath(new URL('../deploy/postgres/compose.yaml', import.meta.url));
 const secret = () => randomBytes(32).toString('hex');
 const repository = fileURLToPath(new URL('../', import.meta.url));
-function privateTarget(directory) {
-  const target = path.resolve(directory); const relative = path.relative(repository, target);
+async function privateTarget(directory) {
+  const requested = path.resolve(directory);
+  const target = path.join(await fs.realpath(path.dirname(requested)), path.basename(requested)); const relative = path.relative(repository, target);
   if (!relative || (!relative.startsWith('..' + path.sep) && !path.isAbsolute(relative))) throw new Error('Store service data and backups outside the source repository.');
   return target;
 }
@@ -21,12 +22,16 @@ export function validPort(value) {
 }
 async function privateWrite(file, content) { await fs.writeFile(file, content, { flag: 'wx', mode: 0o600 }); }
 export async function initPostgres(directory, port = 18018) {
-  const root = privateTarget(directory); port = validPort(port);
+  const root = await privateTarget(directory); port = validPort(port);
   await fs.mkdir(root, { mode: 0o700 }); // deliberately refuses an existing directory
   await fs.mkdir(path.join(root, 'data'), { mode: 0o700 });
   const databasePassword = secret();
   await privateWrite(path.join(root, 'admin-password'), secret());
   await privateWrite(path.join(root, 'init.sql'), `CREATE ROLE synapse LOGIN PASSWORD '${databasePassword}';\nCREATE DATABASE synapse OWNER synapse ENCODING 'UTF8' LC_COLLATE 'C' LC_CTYPE 'C' TEMPLATE template0;\n`);
+  // Read-only bind-mounted files must be readable by the image's postgres UID.
+  // Their host parent remains 0700; no other host user can traverse it.
+  await fs.chmod(path.join(root, 'admin-password'), 0o444);
+  await fs.chmod(path.join(root, 'init.sql'), 0o444);
   const config = { server_name: 'localhost', public_baseurl: `http://127.0.0.1:${port}/`,
     listeners: [{ port: 8008, tls: false, type: 'http', x_forwarded: false, resources: [{ names: ['client'], compress: false }] }],
     database: { name: 'psycopg2', args: { user: 'synapse', password: databasePassword, dbname: 'synapse', host: 'postgres', cp_min: 2, cp_max: 5 } },
@@ -68,7 +73,8 @@ async function digest(file) {
   return hash.digest('hex');
 }
 export async function snapshotPostgres(instance, destination) {
-  const target = privateTarget(destination);
+  const target = await privateTarget(destination);
+  if (target === instance.root || target.startsWith(instance.root + path.sep)) throw new Error('Backup must be outside the source instance.');
   await fs.mkdir(target, { mode: 0o700 }); // no overwrite of backups
   let stopped = false;
   try {
@@ -86,7 +92,9 @@ export async function restorePostgres(snapshot, destination, port = 18019) {
   snapshot = await fs.realpath(snapshot); port = validPort(port);
   const meta = JSON.parse(await fs.readFile(path.join(snapshot, 'snapshot.json'), 'utf8'));
   if (meta.schema !== 1 || meta.postgres !== '17.11' || meta.synapse !== '1.160.0' || meta.dumpSha256 !== await digest(path.join(snapshot, 'database.dump'))) throw new Error('Snapshot version or checksum mismatch.');
-  const root = privateTarget(destination); await fs.mkdir(root, { mode: 0o700 });
+  const root = await privateTarget(destination);
+  if (root === snapshot || root.startsWith(snapshot + path.sep)) throw new Error('Restore must be outside the backup.');
+  await fs.mkdir(root, { mode: 0o700 });
   for (const name of ['data', 'admin-password', 'init.sql']) await fs.cp(path.join(snapshot, name), path.join(root, name), { recursive: true, force: false, errorOnExist: true });
   await privateWrite(path.join(root, 'instance.json'), JSON.stringify({ schema: 1, project: 'mutual-chat-pg-' + randomBytes(8).toString('hex'), port }));
   const instance = await readInstance(root);
