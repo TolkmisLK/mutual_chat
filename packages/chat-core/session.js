@@ -12,9 +12,39 @@ export class ChatSession {
   subscribe(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
   rooms() {
     return this.client.getRooms().filter(r => ['join', 'invite'].includes(r.getMyMembership())).map(r => {
-      const count = r.getUnreadNotificationCount?.('total');
+      const count = this.unreadCount(r);
       return { id: r.roomId, name: r.name || r.roomId, membership: r.getMyMembership(), encrypted: r.hasEncryptionStateEvent(), unread: Number.isSafeInteger(count) && count > 0 ? count : 0 };
     });
+  }
+  unreadCount(room) {
+    const fallback = room.getUnreadNotificationCount?.('total');
+    // SDK 42.3 ignores non-zero server totals in encrypted rooms, but receipts
+    // recalculate only highlights. Derive a total only when the confirmed read
+    // boundary and the entire decrypted suffix are available. Never change the
+    // host's SDK counters or treat its optimistic receipt echo as confirmation.
+    if (!room.hasEncryptionStateEvent() || !this.client.getPushActionsForEvent || room.getThreads?.().length) return fallback;
+    const userId = this.client.getUserId();
+    const boundary = room.getEventReadUpTo?.(userId, true);
+    if (!boundary) return fallback;
+    const receipt = ['m.read.private', 'm.read'].map(type => room.getReadReceiptForUserId?.(userId, true, type))
+      .find(value => value?.eventId === boundary && value.data?.thread_id === undefined);
+    if (!receipt) return fallback;
+    const events = room.getLiveTimeline().getEvents();
+    const start = events.findLastIndex(event => event.getId() === boundary);
+    if (start < 0 || events.length - start > 1000) return fallback;
+    const seen = new Set(); let count = 0;
+    for (const event of events.slice(start + 1)) {
+      const id = event.getId();
+      if (event.threadRootId) return fallback;
+      if (event.status || event.getSender() === userId || event.isRedacted?.()) continue;
+      if (!id || event.isDecryptionFailure?.() || event.getType() === 'm.room.encrypted') return fallback;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const actions = this.client.getPushActionsForEvent(event);
+      if (!actions) return fallback;
+      if (actions.notify) count++;
+    }
+    return count;
   }
   readState(roomId) {
     const room = this.client.getRoom(roomId);

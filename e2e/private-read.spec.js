@@ -40,9 +40,11 @@ test('encrypted unread state changes only on explicit private receipt, retry pre
     await expect(bob.locator('.unread')).toContainText('未读 1'); expect(receipts).toHaveLength(0);
     const peerBaseline = await sync(a); const ownBaseline = await sync(b);
     await button.click(); await expect(bob.locator('.status')).toContainText('未获服务器确认'); await expect(button).toBeEnabled();
+    await expect(bob.locator('.unread')).toContainText('未读 1');
     expect(receipts).toHaveLength(1); expect(receipts[0]).toContain('/receipt/m.read.private/');
     await button.click(); await expect.poll(() => Boolean(release)).toBe(true); await expect(button).toBeDisabled();
     const firstTarget = receipts[1]; await send('请求进行中到达的新消息 ' + suffix);
+    await expect(bob.locator('.unread')).toContainText('未读 2');
     release(); release = null; await expect(bob.locator('.status')).toContainText('已更新私人已读位置');
     const unread = async () => (await sync(b)).rooms.join[roomId].unread_notifications.notification_count;
     await expect.poll(unread).toBe(1); await expect(bob.locator('.unread')).toContainText('未读 1');

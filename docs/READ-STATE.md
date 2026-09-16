@@ -1,6 +1,8 @@
 # Private read state
 
-Room badges display the Matrix SDK's **unread notification count**, not a complete count of all unread messages. Push rules, muted rooms, encryption/key availability and sync affect this value. The badge is capped visually at 999+; no independent local counter is persisted.
+Room badges display **unread notifications**, not a complete count of all unread messages. Push rules, muted rooms, encryption/key availability and sync affect this value. The badge is capped visually at 999+; no independent local counter is persisted.
+
+SDK 42.3 ignores non-zero server totals for encrypted rooms while receipt processing only recalculates highlights. To reconcile stale totals, the adapter counts SDK-notifying events after a server-confirmed, room-wide receipt when its boundary and complete decrypted suffix are in the live timeline. Synthetic receipt echoes are excluded, duplicate event IDs are counted once, and host SDK counters remain untouched. Missing boundaries, unknown push actions, missing keys, threads, or a suffix beyond 1000 events retain the SDK count rather than guessing. Such counts may remain stale until a later sync or a newer confirmed read boundary is available.
 
 Opening a room, scrolling, decrypting history or mounting an embedded panel does not send a read receipt. The explicit **标为已读（仅自己）** button sends `m.read.private` for the latest loaded, decrypted, received message captured when clicked. It is a room-wide acknowledgment through that event, not a claim that every message was actually visible on screen. Pending local sends and missing-key placeholders cannot be targets. A newer event arriving while the request is in progress is not silently substituted.
 
@@ -10,4 +12,4 @@ The SDK may apply a local receipt echo before its HTTP request completes. Theref
 
 References: [Matrix receipts specification](https://spec.matrix.org/latest/client-server-api/#receipts), locked SDK `MatrixClient.sendReadReceipt` and `Room.getUnreadNotificationCount`.
 
-Validation: four controlled unit cases cover counts, exact targets, races, failure/retry and lifecycle. A real two-user encrypted Synapse scenario checks explicit-only requests, an aborted request, a new message during a held receipt, server unread counts and absence of private/public acknowledgment in the other user's sync. See [VALIDATION.md](VALIDATION.md) for actual execution status; a test definition alone is not evidence of a passing run.
+Validation: controlled cases cover counts, exact targets, races, failure/retry and lifecycle. A regression using actual locked SDK Room/MatrixEvent models reproduces the stale total and verifies confirmed-receipt reconciliation without mutating host counters. A real two-user encrypted Synapse scenario checks explicit-only requests, an aborted request, a new message during a held receipt, server unread counts and absence of private/public acknowledgment in the other user's sync. See [VALIDATION.md](VALIDATION.md) for actual execution status; a test definition alone is not evidence of a passing run.

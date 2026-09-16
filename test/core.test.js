@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
+import { createClient, Room, MatrixEvent } from 'matrix-js-sdk';
 import { ChatSession, validateHomeserver } from '../packages/chat-core/session.js';
 
 function fake() {
@@ -88,6 +89,47 @@ test('unread notifications are SDK-derived and receipt subscriptions detach', ()
   for (const invalid of [-1, Infinity, NaN, '2']) { count = invalid; assert.equal(session.rooms()[0].unread, 0); }
   client.emit('Room.UnreadNotifications'); client.emit('Room.receipt'); assert.equal(updates, 2);
   session.dispose(); assert.equal(client.listenerCount('Room.receipt'), 0); assert.equal(client.listenerCount('Room.UnreadNotifications'), 0);
+});
+
+test('real SDK receipts reconcile encrypted totals only after server confirmation, preserving newer arrivals', () => {
+  const userId = '@me:example.org'; const roomId = '!read:example.org';
+  const client = createClient({ baseUrl: 'https://example.org', userId });
+  const room = new Room(roomId, client, userId);
+  client.getRooms = () => [room]; client.getRoom = () => room;
+  room.hasEncryptionStateEvent = () => true; room.getMyMembership = () => 'join';
+  client.getPushActionsForEvent = event => ({ notify: event.getContent().msgtype !== 'm.notice', tweaks: {} });
+  const event = (id, msgtype = 'm.text') => new MatrixEvent({ event_id: id, room_id: roomId, sender: '@other:example.org', type: 'm.room.message', origin_server_ts: 1, content: { msgtype, body: id } });
+  const first = event('$first'); const second = event('$second');
+  room.addLiveEvents([first, second], { addToState: false }); room.setUnreadNotificationCount('total', 2);
+  const session = new ChatSession(client);
+  room.addLocalEchoReceipt(userId, first, 'm.read.private', true);
+  assert.equal(session.rooms()[0].unread, 2, 'aborted/held HTTP receipt cannot clear notifications');
+  const acknowledge = target => room.addReceipt(new MatrixEvent({ type: 'm.receipt', room_id: roomId, content: { [target]: { 'm.read.private': { [userId]: { ts: 2 } } } } }));
+  acknowledge('$first');
+  assert.equal(room.getUnreadNotificationCount('total'), 2, 'locked SDK reproduces stale total');
+  assert.equal(session.rooms()[0].unread, 1);
+  room.addLiveEvents([event('$notice', 'm.notice'), event('$third')], { addToState: false });
+  assert.equal(session.rooms()[0].unread, 2, 'count SDK push actions, not every timeline event');
+  acknowledge('$third'); assert.equal(session.rooms()[0].unread, 0);
+  assert.equal(room.getUnreadNotificationCount('total'), 2, 'adapter never mutates host counters'); session.dispose();
+});
+
+test('unread reconciliation preserves SDK count for incomplete, encrypted or threaded suffixes', () => {
+  const { client, room, session } = fake(); let events = [historyEvent(1), historyEvent(2)];
+  room.getUnreadNotificationCount = () => 7; room.getLiveTimeline = () => ({ getEvents: () => events });
+  client.getPushActionsForEvent = () => ({ notify: true });
+  room.getEventReadUpTo = (user, ignore) => { assert.equal(ignore, true); return '$1'; };
+  room.getReadReceiptForUserId = (user, ignore, type) => { assert.equal(ignore, true); return type === 'm.read.private' ? { eventId: '$1', data: {} } : null; };
+  assert.equal(session.rooms()[0].unread, 1);
+  events = [historyEvent(2)]; assert.equal(session.rooms()[0].unread, 7);
+  events = [historyEvent(1), historyEvent(2)]; events[1].isDecryptionFailure = () => true; assert.equal(session.rooms()[0].unread, 7);
+  events[1] = historyEvent(2); events[1].getType = () => 'm.room.encrypted'; assert.equal(session.rooms()[0].unread, 7);
+  events[1] = historyEvent(2); events[1].threadRootId = '$thread'; assert.equal(session.rooms()[0].unread, 7);
+  events[1] = historyEvent(2); room.getThreads = () => [{}]; assert.equal(session.rooms()[0].unread, 7);
+  room.getThreads = () => []; client.getPushActionsForEvent = () => undefined; assert.equal(session.rooms()[0].unread, 7);
+  client.getPushActionsForEvent = () => ({ notify: true }); events.push(events[1]); assert.equal(session.rooms()[0].unread, 1);
+  events = Array.from({ length: 1002 }, (_, i) => historyEvent(i + 1)); assert.equal(session.rooms()[0].unread, 7);
+  session.dispose();
 });
 
 test('explicit private receipt captures event and coalesces concurrent requests without touching newer arrivals', async () => {
