@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { initPostgres, readInstance, validPort } from '../tool/postgres-server.js';
+import { initPostgres, readInstance, validPort, withOperation, restorePostgres } from '../tool/postgres-server.js';
 
 test('PostgreSQL instance initialization is private, loopback-only and refuses overwrite', async () => {
   const parent = await fs.mkdtemp(path.join(os.tmpdir(), 'chat-pg-config-'));
@@ -27,4 +27,29 @@ test('PostgreSQL instance initialization is private, loopback-only and refuses o
 test('PostgreSQL launcher validates ports before creating state', () => {
   for (const port of [0, 80, 65536, 1.5, 'not-a-port']) assert.throws(() => validPort(port));
   assert.equal(validPort('18019'), 18019);
+});
+
+test('instance operations exclude concurrent writers and release on failure without stealing locks', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'chat-pg-lock-'));
+  try {
+    await withOperation({ root }, async () => {
+      await assert.rejects(withOperation({ root }, () => assert.fail('must not execute')), /Another operation/);
+      assert.equal((await fs.stat(path.join(root, 'operation.lock'))).isFile(), true);
+    });
+    await assert.rejects(withOperation({ root }, async () => { throw new Error('fixture'); }), /fixture/);
+    await assert.rejects(fs.stat(path.join(root, 'operation.lock')), { code: 'ENOENT' });
+    await fs.writeFile(path.join(root, 'operation.lock'), 'previous owner', { flag: 'wx' });
+    await assert.rejects(withOperation({ root }, () => assert.fail()), /Never automatically remove/);
+    assert.equal(await fs.readFile(path.join(root, 'operation.lock'), 'utf8'), 'previous owner');
+  } finally { await fs.rm(root, { recursive: true, force: true }); }
+});
+
+test('corrupt snapshot is rejected before creating any restore destination or starting Docker', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'chat-pg-invalid-'));
+  try {
+    await fs.writeFile(path.join(root, 'database.dump'), 'corrupted');
+    await fs.writeFile(path.join(root, 'snapshot.json'), JSON.stringify({ schema: 1, postgres: '17.11', synapse: '1.160.0', dumpSha256: '0'.repeat(64) }));
+    const target = path.join(root, 'must-not-exist'); await assert.rejects(restorePostgres(root, target), /checksum mismatch/);
+    await assert.rejects(fs.stat(target), { code: 'ENOENT' });
+  } finally { await fs.rm(root, { recursive: true, force: true }); }
 });

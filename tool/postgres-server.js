@@ -50,6 +50,14 @@ export async function readInstance(directory) {
   if (info.schema !== 1 || !/^mutual-chat-pg-[a-f0-9]{16}$/.test(info.project)) throw new Error('Invalid PostgreSQL instance marker.');
   return { root, project: info.project, port: validPort(info.port), base: `http://127.0.0.1:${validPort(info.port)}` };
 }
+export async function withOperation(instance, operation) {
+  const file = path.join(instance.root, 'operation.lock');
+  let lock;
+  try { lock = await fs.open(file, 'wx', 0o600); }
+  catch (error) { if (error.code === 'EEXIST') throw new Error('Another operation owns this instance. Never automatically remove a stale lock.'); throw error; }
+  try { return await operation(); }
+  finally { await lock.close(); await fs.unlink(file); }
+}
 export async function compose(instance, args, { input, output, capture = false } = {}) {
   let text = ''; let overflow = false;
   await new Promise((resolve, reject) => {
@@ -65,7 +73,8 @@ export async function compose(instance, args, { input, output, capture = false }
   });
   return text;
 }
-export async function startPostgres(instance) { await compose(instance, ['up', '-d']); await waitForServer(instance.base); }
+async function start(instance) { await compose(instance, ['up', '-d']); await waitForServer(instance.base); }
+export async function startPostgres(instance) { return withOperation(instance, () => start(instance)); }
 async function digest(file) {
   const handle = await fs.open(file, 'r'); const hash = createHash('sha256');
   try { for await (const chunk of handle.createReadStream({ autoClose: false })) hash.update(chunk); }
@@ -73,6 +82,9 @@ async function digest(file) {
   return hash.digest('hex');
 }
 export async function snapshotPostgres(instance, destination) {
+  return withOperation(instance, () => snapshot(instance, destination));
+}
+async function snapshot(instance, destination) {
   const target = await privateTarget(destination);
   if (target === instance.root || target.startsWith(instance.root + path.sep)) throw new Error('Backup must be outside the source instance.');
   await fs.mkdir(target, { mode: 0o700 }); // no overwrite of backups
@@ -86,7 +98,7 @@ export async function snapshotPostgres(instance, destination) {
     for (const name of ['data', 'admin-password', 'init.sql']) await fs.cp(path.join(instance.root, name), path.join(target, name), { recursive: true, force: false, errorOnExist: true });
     await privateWrite(path.join(target, 'snapshot.json'), JSON.stringify({ schema: 1, postgres: '17.11', synapse: '1.160.0', dumpSha256: await digest(path.join(target, 'database.dump')) }));
     return target;
-  } finally { if (stopped) await startPostgres(instance); }
+  } finally { if (stopped) await start(instance); }
 }
 export async function restorePostgres(snapshot, destination, port = 18019) {
   snapshot = await fs.realpath(snapshot); port = validPort(port);
@@ -95,6 +107,7 @@ export async function restorePostgres(snapshot, destination, port = 18019) {
   const root = await privateTarget(destination);
   if (root === snapshot || root.startsWith(snapshot + path.sep)) throw new Error('Restore must be outside the backup.');
   await fs.mkdir(root, { mode: 0o700 });
+  return withOperation({ root }, async () => {
   for (const name of ['data', 'admin-password', 'init.sql']) await fs.cp(path.join(snapshot, name), path.join(root, name), { recursive: true, force: false, errorOnExist: true });
   await privateWrite(path.join(root, 'instance.json'), JSON.stringify({ schema: 1, project: 'mutual-chat-pg-' + randomBytes(8).toString('hex'), port }));
   const instance = await readInstance(root);
@@ -108,15 +121,16 @@ export async function restorePostgres(snapshot, destination, port = 18019) {
   const dump = await fs.open(path.join(snapshot, 'database.dump'), 'r');
   try { await compose(instance, ['exec', '-T', 'postgres', 'pg_restore', '-U', 'postgres', '-d', 'synapse', '--exit-on-error', '--single-transaction'], { input: dump.fd }); }
   finally { await dump.close(); }
-  await startPostgres(instance);
+  await start(instance);
   return instance;
+  });
 }
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const [action, directory, extra, port] = process.argv.slice(2);
   if (!directory) throw new Error('Specify an explicit private directory outside this repository.');
   if (action === 'init') await initPostgres(directory, extra || 18018);
   else if (action === 'up') await startPostgres(await readInstance(directory));
-  else if (action === 'stop') await compose(await readInstance(directory), ['stop']);
+  else if (action === 'stop') { const instance = await readInstance(directory); await withOperation(instance, () => compose(instance, ['stop'])); }
   else if (action === 'snapshot' && extra) await snapshotPostgres(await readInstance(directory), extra);
   else if (action === 'restore' && extra) await restorePostgres(directory, extra, port || 18019);
   else throw new Error('Actions: init DIR [PORT], up DIR, stop DIR, snapshot DIR NEW_BACKUP, restore BACKUP NEW_DIR [PORT].');
