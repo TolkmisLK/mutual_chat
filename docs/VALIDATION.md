@@ -2,6 +2,10 @@
 
 Development preview. This is not a public deployment or native-device acceptance.
 
+## PostgreSQL recovery — candidate pending CI
+
+Added an isolated loopback Synapse/PostgreSQL deployment and custom-dump/media/config snapshot restoration into a new volume. Local configuration/overwrite/port tests pass (38 total unit tests); actual Docker and encrypted-browser recovery require the dedicated PostgreSQL CI job. Do not infer database acceptance from configuration tests. See [POSTGRES.md](POSTGRES.md) for credentials, downtime, trust and remaining deployment boundaries.
+
 ## Local loaded-message search — 2026-09-17
 
 PR #10 candidate `10622a84d246ce4a4843d7959fc42f54f18d7b28` passed [CI 35152713942](https://github.com/TolkmisLK/mutual_chat/actions/runs/35152713942): 36 unit tests, three builds, all 11 Chromium scenarios (3.0 minutes), Windows packaged startup and Linux native encrypted restart. The real encrypted two-user case (26.4 seconds) searches decrypted text without issuing search/read-receipt requests. The controlled embedded case (228 ms) covers navigation, room reset, literal text and stale handlers.
