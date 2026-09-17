@@ -2,9 +2,11 @@
 
 Development preview. This is not a public deployment or native-device acceptance.
 
-## Own-message redaction — candidate pending CI
+## Own-message redaction — 2026-09-17
 
-Added confirmed own-message redaction shared by standalone and embedded UI, with exact-target coalescing, failed-own-echo cleanup and host lifecycle guards. Core tests pass locally; the new actual encrypted two-user scenario checks cancel/no request, controlled rejection then genuine server retry, peer placeholders, retained unrelated messages and server redaction state. Actual candidate CI and screenshot inspection are pending. See [REDACTION.md](REDACTION.md); retracting a message cannot erase saved copies or backups.
+PR #12 final candidate `5887e493c9c59444962d8e57251c7f7facf3dd22` passed all four jobs in [application CI 35195372721](https://github.com/TolkmisLK/mutual_chat/actions/runs/35195372721) and [PostgreSQL CI 35195372709](https://github.com/TolkmisLK/mutual_chat/actions/runs/35195372709). All 45 unit tests and three builds passed; 12 browser scenarios passed in 3.2 minutes. The new real two-user encrypted redaction case took 3.3 seconds: cancellation sent no request, a controlled rejection allowed a real-server retry, both peers received redaction, another message remained and the server event no longer contained ciphertext. Local search excluded the redacted message. Artifact 10485822483's actual mobile screenshot was downloaded and reviewed; the composer remains visible.
+
+Review identified a failure arriving after panel disposal that could strand an optimistic deleted placeholder in the surviving host client. Settlement now removes only this adapter's failed transaction echo even after unmount, without cancelling an in-flight operation. A regression verifies a remounted panel can retry and host-owned pending events remain intact. Windows startup, Linux encrypted desktop relaunch and PostgreSQL recovery passed again. See [REDACTION.md](REDACTION.md); retracting a message cannot erase saved copies or backups.
 
 ## PostgreSQL recovery — 2026-09-17
 
