@@ -2,9 +2,11 @@
 
 Development preview. This is not a public deployment or native-device acceptance.
 
-## Incomplete PostgreSQL restore guard — pending
+## Incomplete PostgreSQL restore guard — 2026-09-17
 
-The restore-safety candidate retains `restore.pending` until the database import succeeds, blocking startup and snapshots after failure. The new local regression checks repeated refusal, unchanged marker and lock release. The real-PostgreSQL scenario additionally submits a checksum-matching invalid archive to `pg_restore`, checks that the failed target stays empty with only PostgreSQL running, and verifies source communication still works. This extended real-service scenario is not accepted until its CI passes.
+PR #13 candidate `838361f5d66e0de011474b81c0a60b9241be26c2` passed [PostgreSQL CI 35223009270](https://github.com/TolkmisLK/mutual_chat/actions/runs/35223009270) and all four [application CI jobs 35223009295](https://github.com/TolkmisLK/mutual_chat/actions/runs/35223009295). All 46 local/CI unit tests passed, together with the three builds, browser regressions, Windows startup and Linux native encrypted messaging/relaunch.
+
+The guard retains `restore.pending` until the database import succeeds, blocking startup and snapshots after failure. Its local regression checks repeated refusal, unchanged marker and lock release. The real-PostgreSQL scenario passed in 48.0 seconds: a checksum-matching invalid archive reached and failed actual `pg_restore`; the failed target retained zero tables with only PostgreSQL running, while subsequent startup and snapshot were refused. Successful restoration removed its marker and preserved encrypted event IDs/media bytes/one-time-key exclusion; the source continued encrypted communication. This is controlled process-level failure testing, not a power-loss or physical-disk durability guarantee.
 
 ## Own-message redaction — 2026-09-17
 
