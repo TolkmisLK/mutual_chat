@@ -2,6 +2,10 @@
 
 Development preview. This is not a public deployment or native-device acceptance.
 
+## Own-message redaction — candidate pending CI
+
+Added confirmed own-message redaction shared by standalone and embedded UI, with exact-target coalescing, failed-own-echo cleanup and host lifecycle guards. Core tests pass locally; the new actual encrypted two-user scenario checks cancel/no request, controlled rejection then genuine server retry, peer placeholders, retained unrelated messages and server redaction state. Actual candidate CI and screenshot inspection are pending. See [REDACTION.md](REDACTION.md); retracting a message cannot erase saved copies or backups.
+
 ## PostgreSQL recovery — 2026-09-17
 
 PR #11 final candidate `5047514c6ed47715205b970a6213c10dcf60b3d6` passed [PostgreSQL recovery CI 35153896611](https://github.com/TolkmisLK/mutual_chat/actions/runs/35153896611) and all four jobs in [application CI 35153896607](https://github.com/TolkmisLK/mutual_chat/actions/runs/35153896607). The 40-test unit suite and three builds also passed locally. The new actual Docker/Chromium scenario passed in 1.0 minute with PostgreSQL 17.11 and Synapse 1.160.0.

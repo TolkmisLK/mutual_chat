@@ -2,10 +2,10 @@
 export class ChatSession {
   constructor(client) {
     this.client = client; this.listeners = new Set(); this.ready = false; this.closed = false;
-    this.history = new Map(); this.reading = new Map();
+    this.history = new Map(); this.reading = new Map(); this.redacting = new Map();
     this.changed = () => { for (const fn of this.listeners) fn(); };
     this.sync = state => { this.ready = ['PREPARED', 'SYNCING'].includes(state); this.changed(); };
-    this.bindings = [['sync', this.sync], ['Room.timeline', this.changed], ['Room', this.changed], ['Event.decrypted', this.changed], ['Room.name', this.changed], ['Room.myMembership', this.changed], ['Room.UnreadNotifications', this.changed], ['Room.receipt', this.changed]];
+    this.bindings = [['sync', this.sync], ['Room.timeline', this.changed], ['Room.redaction', this.changed], ['Room.redactionCancelled', this.changed], ['Room', this.changed], ['Event.decrypted', this.changed], ['Room.name', this.changed], ['Room.myMembership', this.changed], ['Room.UnreadNotifications', this.changed], ['Room.receipt', this.changed]];
     for (const [event, fn] of this.bindings) client.on(event, fn);
     this.ready = ['PREPARED', 'SYNCING'].includes(client.getSyncState?.());
   }
@@ -73,6 +73,7 @@ export class ChatSession {
     if (!room || room.getMyMembership() !== 'join') return [];
     return this.messageEvents(room).slice(-(this.history.get(roomId)?.limit || 200)).map(e => ({
       id: e.getId(), sender: e.getSender(), mine: e.getSender() === this.client.getUserId(),
+      canRedact: this.canRedact(e), redacting: this.redacting.has(roomId + '\0' + e.getId()),
       searchable: !e.isRedacted() && !e.isDecryptionFailure?.() && e.getType() === 'm.room.message' && ['m.text', 'm.notice', 'm.emote'].includes(e.getContent().msgtype) && typeof e.getContent().body === 'string',
       text: e.isRedacted() ? '[消息已删除]' : (e.isDecryptionFailure?.() || e.getType() === 'm.room.encrypted') ? '[等待解密或缺少密钥]' : typeof e.getContent().body === 'string' ? e.getContent().body : '[暂不支持的消息]',
       time: e.getTs(), status: e.status || 'sent',
@@ -85,6 +86,38 @@ export class ChatSession {
       const id = event.getId(); if (id && seen.has(id)) return false;
       if (id) seen.add(id); return true;
     });
+  }
+  canRedact(event) {
+    return !this.closed && !event.isRedacted() && !event.status && event.getId()?.startsWith('$') && event.getSender() === this.client.getUserId();
+  }
+  redact(roomId, eventId) {
+    if (this.closed || !this.ready) return Promise.reject(new Error('连接尚未就绪。'));
+    const room = this.client.getRoom(roomId);
+    const event = room?.getMyMembership() === 'join' ? this.messageEvents(room).find(e => e.getId() === eventId) : null;
+    if (!event || !this.canRedact(event)) return Promise.reject(new Error('只能撤回自己已发送的消息。'));
+    const key = roomId + '\0' + eventId;
+    if (this.redacting.has(key)) return this.redacting.get(key);
+    const txn = this.client.makeTxnId?.();
+    const request = Promise.resolve().then(() => {
+      if (this.closed) return;
+      // SDK owns transaction IDs and local echo. Do not erase client state on
+      // an ambiguous response; the server's redaction event is authoritative.
+      return txn ? this.client.redactEvent(roomId, eventId, txn) : this.client.redactEvent(roomId, eventId);
+    }).catch(error => {
+      // Release only this adapter's failed local echo, never another host send.
+      // A remote redaction may still arrive after an ambiguous network failure.
+      // The host client outlives this adapter. Settle our failed echo even if
+      // its panel unmounted while the request was pending; suppress only UI
+      // notifications on disposal, never leave an unconfirmed deletion behind.
+      if (txn) {
+        let pending = [];
+        try { pending = room.getPendingEvents?.() || []; } catch { /* chronological SDK ordering */ }
+        const own = [error.event, ...pending, ...room.getLiveTimeline().getEvents()].find(e => e?.getTxnId?.() === txn && e.getType() === 'm.room.redaction' && e.status === 'not_sent');
+        if (own) { try { this.client.cancelPendingEvent(own); } catch { /* host may already have updated it */ } }
+      }
+      throw error;
+    }).finally(() => { this.redacting.delete(key); if (!this.closed) this.changed(); });
+    this.redacting.set(key, request); this.changed(); return request;
   }
   historyState(roomId) {
     const room = this.client.getRoom(roomId); const state = this.history.get(roomId);
@@ -131,7 +164,7 @@ export class ChatSession {
     return this.client.joinRoom(roomId);
   }
   dispose() {
-    if (this.closed) return; this.closed = true; this.ready = false; this.history.clear(); this.reading.clear();
+    if (this.closed) return; this.closed = true; this.ready = false; this.history.clear(); this.reading.clear(); this.redacting.clear();
     for (const [event, fn] of this.bindings) this.client.removeListener(event, fn);
     this.listeners.clear();
     // Ownership remains with the host: unmounting an embedded panel never logs it out.
