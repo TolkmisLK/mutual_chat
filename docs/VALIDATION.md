@@ -2,6 +2,10 @@
 
 Development preview. This is not a public deployment or native-device acceptance.
 
+## Incomplete PostgreSQL restore guard — pending
+
+The restore-safety candidate retains `restore.pending` until the database import succeeds, blocking startup and snapshots after failure. The new local regression checks repeated refusal, unchanged marker and lock release. The real-PostgreSQL scenario additionally submits a checksum-matching invalid archive to `pg_restore`, checks that the failed target stays empty with only PostgreSQL running, and verifies source communication still works. This extended real-service scenario is not accepted until its CI passes.
+
 ## Own-message redaction — 2026-09-17
 
 PR #12 final candidate `5887e493c9c59444962d8e57251c7f7facf3dd22` passed all four jobs in [application CI 35195372721](https://github.com/TolkmisLK/mutual_chat/actions/runs/35195372721) and [PostgreSQL CI 35195372709](https://github.com/TolkmisLK/mutual_chat/actions/runs/35195372709). All 45 unit tests and three builds passed; 12 browser scenarios passed in 3.2 minutes. The new real two-user encrypted redaction case took 3.3 seconds: cancellation sent no request, a controlled rejection allowed a real-server retry, both peers received redaction, another message remained and the server event no longer contained ciphertext. Local search excluded the redacted message. Artifact 10485822483's actual mobile screenshot was downloaded and reviewed; the composer remains visible.

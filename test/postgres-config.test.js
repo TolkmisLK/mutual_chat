@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { initPostgres, readInstance, validPort, withOperation, restorePostgres } from '../tool/postgres-server.js';
+import { initPostgres, readInstance, validPort, withOperation, restorePostgres, startPostgres, snapshotPostgres } from '../tool/postgres-server.js';
 
 test('PostgreSQL instance initialization is private, loopback-only and refuses overwrite', async () => {
   const parent = await fs.mkdtemp(path.join(os.tmpdir(), 'chat-pg-config-'));
@@ -51,5 +51,22 @@ test('corrupt snapshot is rejected before creating any restore destination or st
     await fs.writeFile(path.join(root, 'snapshot.json'), JSON.stringify({ schema: 1, postgres: '17.11', synapse: '1.160.0', dumpSha256: '0'.repeat(64) }));
     const target = path.join(root, 'must-not-exist'); await assert.rejects(restorePostgres(root, target), /checksum mismatch/);
     await assert.rejects(fs.stat(target), { code: 'ENOENT' });
+  } finally { await fs.rm(root, { recursive: true, force: true }); }
+});
+
+test('incomplete restore marker blocks startup and snapshots without invoking Docker or deleting state', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'chat-pg-pending-'));
+  try {
+    const instance = await initPostgres(path.join(root, 'instance'));
+    const marker = path.join(instance.root, 'restore.pending');
+    await fs.writeFile(marker, 'interrupted import', { flag: 'wx', mode: 0o600 });
+    assert.equal((await readInstance(instance.root)).project, instance.project); // stop/inspection remain possible
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await assert.rejects(startPostgres(instance), /Incomplete restore/);
+      await assert.rejects(snapshotPostgres(instance, path.join(root, 'backup')), /Incomplete restore/);
+    }
+    assert.equal(await fs.readFile(marker, 'utf8'), 'interrupted import');
+    await assert.rejects(fs.stat(path.join(root, 'backup')), { code: 'ENOENT' });
+    await assert.rejects(fs.stat(path.join(instance.root, 'operation.lock')), { code: 'ENOENT' });
   } finally { await fs.rm(root, { recursive: true, force: true }); }
 });
