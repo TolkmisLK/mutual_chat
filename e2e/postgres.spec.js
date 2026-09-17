@@ -2,12 +2,12 @@ import { test, expect } from '@playwright/test';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { randomBytes, createHmac } from 'node:crypto';
-import { initPostgres, startPostgres, snapshotPostgres, restorePostgres, compose } from '../tool/postgres-server.js';
+import { randomBytes, createHmac, createHash } from 'node:crypto';
+import { initPostgres, readInstance, startPostgres, snapshotPostgres, restorePostgres, compose } from '../tool/postgres-server.js';
 
 test('PostgreSQL encrypted exchange, cold media snapshot and fresh-volume restoration', async ({ browser }) => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'mutual-chat-pg-acceptance-')); await fs.chmod(root, 0o700);
-  let source, restored; const contexts = []; let cleanupSucceeded = true;
+  let source, restored, failedRestore; const contexts = []; let cleanupSucceeded = true;
   const password = randomBytes(24).toString('hex'); const suffix = randomBytes(4).toString('hex');
   async function request(base, endpoint, auth, init = {}) {
     const r = await fetch(base + endpoint, { ...init, headers: { ...(auth ? { Authorization: 'Bearer ' + auth.access_token } : {}), ...init.headers }, signal: AbortSignal.timeout(15000) });
@@ -58,13 +58,32 @@ test('PostgreSQL encrypted exchange, cold media snapshot and fresh-volume restor
     expect(copy.chunk.filter(e => e.type === 'm.room.encrypted').map(e => e.event_id).sort()).toEqual(ids); expect(JSON.stringify(copy)).not.toContain(message);
     expect(Buffer.from(await (await request(restored.base, mediaPath, alice.auth)).arrayBuffer())).toEqual(media);
     const keys = await compose(restored, ['exec', '-T', 'postgres', 'psql', '-U', 'postgres', '-d', 'synapse', '-Atc', 'SELECT count(*) FROM e2e_one_time_keys_json'], { capture: true }); expect(keys.trim()).toBe('0');
+    await expect(fs.stat(path.join(restored.root, 'restore.pending'))).rejects.toMatchObject({ code: 'ENOENT' });
+    // Checksum-valid invalid archive: real pg_restore failure, not digest preflight.
+    // Only this isolated backup copy is modified.
+    const invalid = path.join(root, 'invalid-archive'); await fs.cp(backup, invalid, { recursive: true, force: false, errorOnExist: true });
+    const bytes = Buffer.from('not a PostgreSQL custom archive');
+    await fs.writeFile(path.join(invalid, 'database.dump'), bytes);
+    const manifestPath = path.join(invalid, 'snapshot.json'); const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
+    manifest.dumpSha256 = createHash('sha256').update(bytes).digest('hex'); await fs.writeFile(manifestPath, JSON.stringify(manifest));
+    const failedPath = path.join(root, 'failed-restore');
+    try { await expect(restorePostgres(invalid, failedPath, 18020)).rejects.toThrow('compose operation failed'); }
+    finally { try { failedRestore = await readInstance(failedPath); } catch { /* no project created yet */ } }
+    expect(failedRestore).toBeTruthy();
+    await expect(startPostgres(failedRestore)).rejects.toThrow('Incomplete restore');
+    await expect(snapshotPostgres(failedRestore, path.join(root, 'blocked-backup'))).rejects.toThrow('Incomplete restore');
+    expect((await fs.stat(path.join(failedPath, 'restore.pending'))).isFile()).toBe(true);
+    const failedTables = await compose(failedRestore, ['exec', '-T', 'postgres', 'psql', '-U', 'postgres', '-d', 'synapse', '-Atc', "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'"], { capture: true });
+    expect(failedTables.trim()).toBe('0');
+    const running = await compose(failedRestore, ['ps', '--status', 'running', '--services'], { capture: true });
+    expect(running.trim().split(/\s+/)).toEqual(['postgres']);
     await expect(restorePostgres(backup, source.root, 18019)).rejects.toThrow();
     const reply = 'Source still works ' + suffix; await bob.page.getByRole('textbox', { name: '消息', exact: true }).fill(reply); await bob.page.getByRole('button', { name: '发送', exact: true }).click(); await expect(alice.page.getByRole('log')).toContainText(reply);
-    console.log(JSON.stringify({ postgres: '17.11', synapse: '1.160.0', nonSuperuser: true, localeC: true, encryptedDelivery: true, restoredCiphertextIds: true, restoredMediaBytes: media.length, oneTimeKeysExcluded: true, sourcePreserved: true, trustedRemoteTlsTested: false }));
+    console.log(JSON.stringify({ postgres: '17.11', synapse: '1.160.0', nonSuperuser: true, localeC: true, encryptedDelivery: true, restoredCiphertextIds: true, restoredMediaBytes: media.length, oneTimeKeysExcluded: true, failedImportBlocksStartup: true, failedDatabaseRemainsEmpty: true, sourcePreserved: true, trustedRemoteTlsTested: false }));
   } finally {
     for (const context of contexts) await context.close();
     // Only unique projects created by this test. Never delete an operator's volume.
-    for (const instance of [restored, source].filter(Boolean)) { try { await compose(instance, ['down', '-v']); } catch { cleanupSucceeded = false; } }
+    for (const instance of [failedRestore, restored, source].filter(Boolean)) { try { await compose(instance, ['down', '-v']); } catch { cleanupSucceeded = false; } }
     if (cleanupSucceeded) await fs.rm(root, { recursive: true, force: true });
   }
 });

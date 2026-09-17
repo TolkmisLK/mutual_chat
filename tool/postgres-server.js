@@ -73,7 +73,12 @@ export async function compose(instance, args, { input, output, capture = false }
   });
   return text;
 }
-async function start(instance) { await compose(instance, ['up', '-d']); await waitForServer(instance.base); }
+async function requireRestored(instance) {
+  try { await fs.lstat(path.join(instance.root, 'restore.pending')); }
+  catch (error) { if (error.code === 'ENOENT') return; throw error; }
+  throw new Error('Incomplete restore: startup and snapshot are blocked. Keep this instance for inspection and restore the trusted backup into a new directory; do not remove restore.pending.');
+}
+async function start(instance) { await requireRestored(instance); await compose(instance, ['up', '-d']); await waitForServer(instance.base); }
 export async function startPostgres(instance) { return withOperation(instance, () => start(instance)); }
 async function digest(file) {
   const handle = await fs.open(file, 'r'); const hash = createHash('sha256');
@@ -85,6 +90,7 @@ export async function snapshotPostgres(instance, destination) {
   return withOperation(instance, () => snapshot(instance, destination));
 }
 async function snapshot(instance, destination) {
+  await requireRestored(instance);
   const target = await privateTarget(destination);
   if (target === instance.root || target.startsWith(instance.root + path.sep)) throw new Error('Backup must be outside the source instance.');
   await fs.mkdir(target, { mode: 0o700 }); // no overwrite of backups
@@ -108,6 +114,9 @@ export async function restorePostgres(snapshot, destination, port = 18019) {
   if (root === snapshot || root.startsWith(snapshot + path.sep)) throw new Error('Restore must be outside the backup.');
   await fs.mkdir(root, { mode: 0o700 });
   return withOperation({ root }, async () => {
+  // Survives failed imports and process exits. A valid instance marker alone
+  // must never allow Synapse to initialize an empty or incompletely restored DB.
+  await privateWrite(path.join(root, 'restore.pending'), 'Database import has not been confirmed. Do not remove this marker.\n');
   for (const name of ['data', 'admin-password', 'init.sql']) await fs.cp(path.join(snapshot, name), path.join(root, name), { recursive: true, force: false, errorOnExist: true });
   await privateWrite(path.join(root, 'instance.json'), JSON.stringify({ schema: 1, project: 'mutual-chat-pg-' + randomBytes(8).toString('hex'), port }));
   const instance = await readInstance(root);
@@ -121,6 +130,7 @@ export async function restorePostgres(snapshot, destination, port = 18019) {
   const dump = await fs.open(path.join(snapshot, 'database.dump'), 'r');
   try { await compose(instance, ['exec', '-T', 'postgres', 'pg_restore', '-U', 'postgres', '-d', 'synapse', '--exit-on-error', '--single-transaction'], { input: dump.fd }); }
   finally { await dump.close(); }
+  await fs.unlink(path.join(root, 'restore.pending'));
   await start(instance);
   return instance;
   });
