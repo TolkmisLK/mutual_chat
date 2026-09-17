@@ -106,7 +106,10 @@ export class ChatSession {
     }).catch(error => {
       // Release only this adapter's failed local echo, never another host send.
       // A remote redaction may still arrive after an ambiguous network failure.
-      if (!this.closed && txn) {
+      // The host client outlives this adapter. Settle our failed echo even if
+      // its panel unmounted while the request was pending; suppress only UI
+      // notifications on disposal, never leave an unconfirmed deletion behind.
+      if (txn) {
         let pending = [];
         try { pending = room.getPendingEvents?.() || []; } catch { /* chronological SDK ordering */ }
         const own = [error.event, ...pending, ...room.getLiveTimeline().getEvents()].find(e => e?.getTxnId?.() === txn && e.getType() === 'm.room.redaction' && e.status === 'not_sent');

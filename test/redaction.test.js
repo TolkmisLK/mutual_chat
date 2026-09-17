@@ -41,3 +41,22 @@ test('failed echo cleanup matches only this request transaction and leaves host 
   f.room.getPendingEvents = () => [unrelated, owned]; f.client.redactEvent = async (room, target, txn) => { assert.equal(txn, 'owned-txn'); throw new Error('network'); };
   await assert.rejects(f.session.redact('!room', '$own')); assert.deepEqual(cancelled, [owned]); f.session.dispose();
 });
+
+test('failure after unmount removes only the settled owned echo and allows a remounted panel to retry', async () => {
+  const f = fixture(); let reject; let optimistic = false; let updates = 0;
+  const own = { getTxnId: () => 'disposed-txn', getType: () => 'm.room.redaction', status: 'sending' };
+  const host = { getTxnId: () => 'host-txn', getType: () => 'm.room.redaction', status: 'not_sent' };
+  const cancelled = []; f.event.isRedacted = () => optimistic;
+  f.client.makeTxnId = () => 'disposed-txn'; f.room.getPendingEvents = () => [host, own];
+  f.client.cancelPendingEvent = event => { cancelled.push(event); if (event === own) optimistic = false; };
+  f.client.redactEvent = () => { optimistic = true; return new Promise((resolve, fail) => { reject = fail; }); };
+  f.session.subscribe(() => updates++);
+  const pending = f.session.redact('!room', '$own'); await Promise.resolve();
+  f.session.dispose(); const baseline = updates;
+  assert.deepEqual(cancelled, [], 'unmount must not cancel an in-flight request');
+  own.status = 'not_sent'; reject(Object.assign(new Error('denied after unmount'), { event: own }));
+  await assert.rejects(pending, /denied/); assert.equal(updates, baseline);
+  assert.deepEqual(cancelled, [own]);
+  const reopened = new ChatSession(f.client); assert.equal(reopened.messages('!room')[0].canRedact, true);
+  f.client.redactEvent = async () => ({ event_id: '$retry' }); await reopened.redact('!room', '$own'); reopened.dispose();
+});
