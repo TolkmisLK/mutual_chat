@@ -27,6 +27,7 @@ export function mountChat(container, { client, session: providedSession }) {
   q('style').textContent += '.create-dialog{width:min(500px,92vw);border:1px solid #bfd2df;border-radius:14px;padding:24px;color:inherit;background:#f7fafc}.create-dialog::backdrop{background:#14212d99}.create-dialog form{display:block;padding:0;border:0}.create-dialog label{display:block;margin:12px 0}.create-dialog input{display:block;width:100%;padding:10px;font:inherit;margin-top:6px}.create-dialog button{margin-right:8px}.create-error{color:#9b3028}';
   q('style').textContent += '@media(prefers-color-scheme:dark){.create-dialog,.create-dialog input{background:#1d2e3d;color:#e1ebf2}.create-error{color:#ffabab}}';
   const status = text => { if (!stopped) q('.status').textContent = text; };
+  q('style').textContent += '.message .redact{display:block;margin-top:8px;padding:3px 8px;font-size:12px;background:transparent;color:inherit}';
   function render() {
     if (stopped) return; const rooms = session.rooms(); q('.rooms').replaceChildren();
     for (const room of rooms) {
@@ -64,7 +65,18 @@ export function mountChat(container, { client, session: providedSession }) {
       if (searchHits.includes(message.id)) bubble.classList.add('search-match');
       if (message.id === searchHit) { bubble.classList.add('search-current'); bubble.setAttribute('aria-current', 'true'); }
       const sender = document.createElement('span'); sender.className = 'sender'; sender.textContent = `${message.sender} · ${new Date(message.time).toLocaleTimeString()}${message.status === 'sent' ? '' : ` · ${message.status}`}`;
-      const body = document.createElement('span'); body.textContent = message.text; bubble.append(sender, body); messages.append(bubble);
+      const body = document.createElement('span'); body.textContent = message.text; bubble.append(sender, body);
+      if (message.canRedact) {
+        const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'redact'; remove.textContent = message.redacting ? '撤回中…' : '撤回';
+        remove.disabled = !session.ready || message.redacting; const target = current.id; const eventId = message.id;
+        remove.onclick = async () => {
+          if (stopped || !session.ready || message.redacting || !confirm('撤回这条自己发送的消息？其他人已经保存的副本、通知和备份无法擦除。')) return;
+          try { await session.redact(target, eventId); if (selected === target) status('撤回请求已确认，等待会话同步；已有副本无法擦除。'); }
+          catch { if (selected === target) status('撤回未获确认，请检查消息状态后重试。服务器权限可能不允许撤回。'); }
+          finally { render(); }
+        }; bubble.append(remove);
+      }
+      messages.append(bubble);
     }
     const restored = anchorId ? [...messages.children].find(node => node.dataset.eventId === anchorId) : null;
     if (restored) messages.scrollTop += restored.getBoundingClientRect().top - anchorTop;
