@@ -140,3 +140,6 @@ See [LOCAL-SERVER.md](LOCAL-SERVER.md) for configuration, storage and private ba
 ## Unfinished launch gates
 
 Device verification and cross-signing; first-time backup setup and large/partial backup recovery; attachments/unread/search and navigation beyond the bounded history window; PostgreSQL + trusted TLS staging deployment and its backup restoration; desktop/mobile native acceptance and physical-device lifecycle tests. Local session restoration, existing remote backup recovery, bounded history pagination and embedded-host interaction have the real-browser evidence above. No stable release has been published.
+# Same-account SAS candidate — pending CI
+
+Added an explicit same-account/other-device SAS controller and standalone dialog using the locked Matrix SDK's verification protocol. It never auto-accepts or confirms numbers, never resets keys/backups, rejects foreign targets, detaches stale callbacks and cancels requests returning after close. Success requires explicit local confirmation, completed SDK verification and `localVerified=true`, not merely a submitted MAC. Controlled tests and a real two-device mismatch/retry/match scenario are added; real acceptance is pending CI. See [DEVICE-VERIFICATION.md](DEVICE-VERIFICATION.md).

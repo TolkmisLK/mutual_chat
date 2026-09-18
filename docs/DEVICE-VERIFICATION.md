@@ -1,0 +1,9 @@
+# Same-account device SAS verification — candidate
+
+The standalone app can request an official SDK SAS exchange with another listed device of the same account. Both devices open **核对设备**; enter the other device ID on one, inspect the request identity on the other, explicitly accept, and start number comparison. Compare all three numbers face-to-face or over an independently trusted channel. Never confirm based only on forwarded numbers in the unverified chat.
+
+Incoming requests do not auto-open a dialog, accept, or confirm a SAS. Foreign accounts, room-based verification and the current device are excluded. Only `m.sas.v1` is advertised. Either side can reject a mismatch or cancel; closing/locking the app detaches listeners and attempts protocol cancellation. A MAC submission alone is not success: the SDK verifier must finish and report local device trust after explicit confirmation.
+
+This is not peer/contact verification, a cross-signing setup wizard or first-time backup creation. It never calls trust setters, resets encryption, or creates/deletes a backup. The SDK may use existing cross-signing material during its protocol; the displayed success is deliberately limited to local device verification. Temporary sessions lose local trust on close; encrypted remembered sessions use the existing SDK database. An unavailable or timed-out counterpart must be retried, not marked trusted manually.
+
+Controlled lifecycle/state tests and a two-context real Synapse/RustCrypto mismatch-then-confirmation scenario are added. Real-browser acceptance is pending CI; do not claim completion from controlled tests or from the UI label alone. The initial UI is standalone-only; embedded hosts continue to own their SDK verification lifecycle.
