@@ -75,6 +75,12 @@ export class DeviceVerification {
       if (typeof deviceId !== 'string' || !deviceId || deviceId.length > 255 || deviceId === this.client.getDeviceId()) throw new Error('请选择同一帐号的另一设备 ID。');
       const { devices } = await this.client.getDevices();
       if (!devices.some(d => d.device_id === deviceId)) throw new Error('设备不在此帐号的当前列表中。');
+      // For our tracked own user SDK 42.3 refreshes /keys/query through the
+      // Rust outgoing-request processor here. getUserDeviceInfo alone may
+      // return an older cached list (or an HTTP-only untracked list). This
+      // read-only query does not bootstrap or replace cross-signing keys.
+      await this.crypto.userHasCrossSigningKeys(this.client.getUserId(), true);
+      if (this.closed || epoch !== this.epoch) return;
       await this.crypto.getUserDeviceInfo([this.client.getUserId()], true);
       if (this.closed || epoch !== this.epoch) return;
       const request = await this.crypto.requestDeviceVerification(this.client.getUserId(), deviceId);

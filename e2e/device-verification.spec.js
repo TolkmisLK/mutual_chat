@@ -19,6 +19,9 @@ test('two real RustCrypto devices require explicit SAS matching and reject a mis
     await a.getByRole('button', { name: '核对设备', exact: true }).click(); await b.getByRole('button', { name: '核对设备', exact: true }).click();
     async function begin() {
       await a.getByLabel('另一设备 ID', { exact: true }).fill(bb.device_id); await a.getByRole('button', { name: '发起设备核对', exact: true }).click();
+      // Diagnose the sender first; a local key lookup failure is not a
+      // transport timeout on the receiving device. Status contains no token.
+      await expect(a.locator('#verification-state')).toHaveText('等待另一台设备接受请求。');
       await expect(b.locator('#verification-target')).toContainText(aa.device_id);
       await expect(b.getByRole('button', { name: '接受此设备请求', exact: true })).toBeVisible();
       await expect(a.locator('#verification-numbers')).toBeHidden(); await expect(b.locator('#verification-numbers')).toBeHidden();

@@ -16,7 +16,7 @@ function fixture() {
     startVerification: async () => { counts.starts++; request.phase = 4; request.chosenMethod = 'm.sas.v1'; request.verifier = verifier; request.emit('change'); return verifier; },
     cancel: async () => { counts.cancels++; request.pending = false; request.phase = 5; request.emit('change'); },
   });
-  const crypto = { getUserDeviceInfo: async () => {}, requestDeviceVerification: async () => { counts.requests++; return request; }, getDeviceVerificationStatus: async () => ({ localVerified: true }) };
+  const crypto = { userHasCrossSigningKeys: async () => false, getUserDeviceInfo: async () => {}, requestDeviceVerification: async () => { counts.requests++; return request; }, getDeviceVerificationStatus: async () => ({ localVerified: true }) };
   Object.assign(client, { getUserId: () => '@me:local', getDeviceId: () => 'A', getDevices: async () => ({ devices: [{ device_id: 'A' }, { device_id: 'B' }] }), getCrypto: () => crypto });
   const controller = new DeviceVerification(client);
   return { client, controller, request, verifier, sas, crypto, counts, done };
@@ -66,4 +66,15 @@ test('changed target and malformed SAS cannot authorize a confirmation', async (
   f.sas.sas.decimal = [1, NaN, 2]; f.verifier.emit('show_sas'); await assert.rejects(f.controller.match());
   f.sas.sas.decimal = [1234, 5678, 9012]; f.request.otherDeviceId = 'C'; f.request.emit('change'); await assert.rejects(f.controller.match());
   assert.equal(f.counts.confirms, 0); f.controller.dispose();
+});
+test('fresh own key query precedes verification without requiring or creating cross-signing keys', async () => {
+  const f = fixture(), calls = [];
+  f.crypto.userHasCrossSigningKeys = async (user, download) => { assert.equal(user, '@me:local'); assert.equal(download, true); calls.push('refresh'); return false; };
+  f.crypto.getUserDeviceInfo = async () => { calls.push('devices'); };
+  f.crypto.requestDeviceVerification = async () => { calls.push('request'); return f.request; };
+  await f.controller.begin('B'); assert.deepEqual(calls, ['refresh', 'devices', 'request']); f.controller.dispose();
+  const g = fixture(); let finish;
+  g.crypto.userHasCrossSigningKeys = () => new Promise(resolve => { finish = resolve; });
+  const pending = g.controller.begin('B'); await tick(); await g.controller.cancel(); finish(false); await pending;
+  assert.equal(g.counts.requests, 0); g.controller.dispose();
 });
