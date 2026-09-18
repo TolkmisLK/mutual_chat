@@ -90,3 +90,21 @@ test('outgoing Requested flow retains its explicit target until SDK supplies the
   g.request.otherDeviceId = 'B'; g.request.phase = 3; g.request.emit('change');
   await g.controller.start(); await tick(); assert.deepEqual(g.controller.snapshot().decimal, [1234, 5678, 9012]); g.controller.dispose();
 });
+test('Done may omit its peer only after binding the exact SAS device and confirming; close suppresses late trust', async () => {
+  const f = fixture();
+  await f.controller.begin('B'); f.request.phase = 3; await f.controller.start(); await tick(); await f.controller.match();
+  f.request.phase = 6; f.request.otherDeviceId = undefined; f.done(); await tick();
+  assert.equal(f.controller.verified, true); f.controller.dispose();
+  const unbound = fixture(); unbound.request.phase = 6; unbound.request.otherDeviceId = undefined;
+  assert.equal(unbound.controller.allowed(unbound.request, 'B'), false); unbound.controller.dispose();
+  const g = fixture(); let release;
+  g.crypto.getDeviceVerificationStatus = () => new Promise(resolve => { release = resolve; });
+  await g.controller.begin('B'); g.request.phase = 3; await g.controller.start(); await tick(); await g.controller.match();
+  g.request.phase = 6; g.done(); await tick(); await g.controller.cancel(); release({ localVerified: true }); await tick();
+  assert.equal(g.controller.verified, false); assert.equal(g.controller.result, null); g.controller.dispose();
+  const changed = fixture(); await changed.controller.begin('B'); changed.request.phase = 3;
+  await changed.controller.start(); await tick(); await changed.controller.match();
+  changed.request.otherDeviceId = 'C'; changed.request.emit('change');
+  changed.request.otherDeviceId = undefined; changed.request.phase = 6; changed.done(); await tick();
+  assert.equal(changed.controller.verified, false); changed.controller.dispose();
+});

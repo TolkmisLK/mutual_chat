@@ -13,12 +13,18 @@ export class DeviceVerification {
     client.on(CryptoEvent.VerificationRequestReceived, this.onIncoming);
   }
   allowed(request, expectedDeviceId) {
+    if (request === this.request && this.identityInvalid) return false;
     if (request?.otherUserId !== this.client.getUserId() || request.roomId) return false;
     const valid = id => typeof id === 'string' && id.length > 0 && id.length <= 255 && id !== this.client.getDeviceId();
     // Rust leaves otherDeviceId unset on a newly created outgoing request,
     // even though requestDeviceVerification sent it to one exact device.
     // Only that locally bound Requested flow may temporarily omit the ID.
-    if (request.otherDeviceId === undefined) return valid(expectedDeviceId) && request.initiatedByMe && request.phase === Phase.Requested;
+    if (request.otherDeviceId === undefined) return valid(expectedDeviceId) && (
+      (request.initiatedByMe && request.phase === Phase.Requested) ||
+      // Rust also drops the peer field on Done. Retain only the device bound
+      // to this exact SAS transcript before the user's explicit confirmation.
+      (request === this.request && request.phase === Phase.Done && this.confirmed && this.boundDevice === expectedDeviceId && Boolean(this.verifier))
+    );
     return valid(request.otherDeviceId) && (!expectedDeviceId || request.otherDeviceId === expectedDeviceId);
   }
   notify() { if (!this.closed) this.changed(this.snapshot()); }
@@ -32,7 +38,7 @@ export class DeviceVerification {
   detach() {
     this.request?.off(VerificationRequestEvent.Change, this.onChange);
     this.verifier?.off(VerifierEvent.ShowSas, this.onSas);
-    this.request = null; this.verifier = null; this.sas = null; this.confirmed = false; this.verified = false; this.result = null;
+    this.request = null; this.verifier = null; this.sas = null; this.confirmed = false; this.verified = false; this.result = null; this.boundDevice = null; this.identityInvalid = false;
   }
   adopt(request, target = request.otherDeviceId) {
     if (this.closed || !this.allowed(request, target)) return false;
@@ -42,13 +48,14 @@ export class DeviceVerification {
   update() {
     if (this.closed || !this.request) return;
     const request = this.request;
-    if (!this.allowed(request, this.target)) { this.sas = null; this.message = '设备身份改变，核对已停止。'; this.notify(); return; }
+    if (!this.allowed(request, this.target)) { this.identityInvalid = true; this.sas = null; this.verified = false; this.message = '设备身份改变，核对已停止。'; this.notify(); return; }
     if (request.phase === Phase.Cancelled) { this.sas = null; this.verified = false; this.message = '核对已取消或超时，设备未被本次核对确认。'; }
     else if (request.phase === Phase.Done) { this.sas = null; this.message = this.verified ? '此设备已通过本机 SAS 核对。' : '正在核对 SDK 的设备信任结果…'; }
     else if (request.phase === Phase.Requested) this.message = request.initiatedByMe ? '等待另一台设备接受请求。' : '请先核对下方设备 ID，再接受请求。';
     else if (request.phase === Phase.Ready) this.message = '双方已接受请求，请开始数字核对。';
     else if (request.phase === Phase.Started) this.message = this.confirmed ? '已确认本机数字，等待对方完成。' : '请通过面对面或可信渠道比较两台设备上的全部三个数字。';
     if (this.accepted && request.phase === Phase.Started && request.chosenMethod === 'm.sas.v1' && request.verifier && !this.verifier) {
+      this.boundDevice = request.otherDeviceId;
       const verifier = request.verifier; this.verifier = verifier;
       verifier.on(VerifierEvent.ShowSas, this.onSas);
       // This continues the protocol after an explicitly accepted request. It
@@ -57,7 +64,7 @@ export class DeviceVerification {
         const status = await this.crypto.getDeviceVerificationStatus(this.client.getUserId(), this.target);
         if (this.closed || this.request !== request || this.verifier !== verifier) return;
         this.result = { phase: request.phase, confirmed: this.confirmed, targetMatched: this.allowed(request, this.target), localVerified: status?.localVerified === true };
-        this.verified = this.allowed(request, this.target) && request.phase === Phase.Done && this.confirmed && status?.localVerified === true;
+        this.verified = this.result.targetMatched && request.phase === Phase.Done && this.confirmed && this.result.localVerified;
         this.message = this.verified ? '此设备已通过本机 SAS 核对。' : '协议结束，但本机尚未确认设备信任；不要假定已验证。';
         this.sas = null; this.notify();
       }).catch(() => { if (!this.closed && this.request === request) { this.sas = null; this.verified = false; this.message = '核对未完成或已取消，请重新发起。'; this.notify(); } });
