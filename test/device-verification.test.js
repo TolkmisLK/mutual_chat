@@ -78,3 +78,15 @@ test('fresh own key query precedes verification without requiring or creating cr
   const pending = g.controller.begin('B'); await tick(); await g.controller.cancel(); finish(false); await pending;
   assert.equal(g.counts.requests, 0); g.controller.dispose();
 });
+test('outgoing Requested flow retains its explicit target until SDK supplies the accepting device', async () => {
+  const f = fixture(); f.request.otherDeviceId = undefined;
+  f.client.emit('crypto.verificationRequestReceived', f.request); assert.equal(f.controller.request, null);
+  await f.controller.begin('B'); assert.equal(f.controller.snapshot().deviceId, 'B'); assert.equal(f.counts.cancels, 0);
+  f.request.otherDeviceId = 'C'; f.request.phase = 3; f.request.emit('change');
+  assert.equal(f.controller.snapshot().message, '设备身份改变，核对已停止。');
+  await assert.rejects(f.controller.start()); assert.equal(f.counts.starts, 0);
+  await assert.rejects(f.controller.match()); f.controller.dispose();
+  const g = fixture(); g.request.otherDeviceId = undefined; await g.controller.begin('B');
+  g.request.otherDeviceId = 'B'; g.request.phase = 3; g.request.emit('change');
+  await g.controller.start(); await tick(); assert.deepEqual(g.controller.snapshot().decimal, [1234, 5678, 9012]); g.controller.dispose();
+});

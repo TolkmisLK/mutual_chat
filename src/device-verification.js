@@ -12,14 +12,19 @@ export class DeviceVerification {
     this.onChange = () => this.update(); this.onSas = () => this.update();
     client.on(CryptoEvent.VerificationRequestReceived, this.onIncoming);
   }
-  allowed(request) {
-    return request?.otherUserId === this.client.getUserId() && !request.roomId &&
-      typeof request.otherDeviceId === 'string' && request.otherDeviceId.length > 0 && request.otherDeviceId.length <= 255 && request.otherDeviceId !== this.client.getDeviceId();
+  allowed(request, expectedDeviceId) {
+    if (request?.otherUserId !== this.client.getUserId() || request.roomId) return false;
+    const valid = id => typeof id === 'string' && id.length > 0 && id.length <= 255 && id !== this.client.getDeviceId();
+    // Rust leaves otherDeviceId unset on a newly created outgoing request,
+    // even though requestDeviceVerification sent it to one exact device.
+    // Only that locally bound Requested flow may temporarily omit the ID.
+    if (request.otherDeviceId === undefined) return valid(expectedDeviceId) && request.initiatedByMe && request.phase === Phase.Requested;
+    return valid(request.otherDeviceId) && (!expectedDeviceId || request.otherDeviceId === expectedDeviceId);
   }
   notify() { if (!this.closed) this.changed(this.snapshot()); }
   snapshot() {
     const request = this.request;
-    return { deviceId: request?.otherDeviceId || '', phase: request?.phase || 0,
+    return { deviceId: request ? this.target : '', phase: request?.phase || 0,
       incoming: Boolean(request && !request.initiatedByMe), busy: this.busy,
       decimal: this.sas?.sas.decimal?.slice() || null, confirmed: this.confirmed,
       verified: this.verified, message: this.message };
@@ -29,15 +34,15 @@ export class DeviceVerification {
     this.verifier?.off(VerifierEvent.ShowSas, this.onSas);
     this.request = null; this.verifier = null; this.sas = null; this.confirmed = false; this.verified = false;
   }
-  adopt(request) {
-    if (this.closed || !this.allowed(request)) return false;
-    this.detach(); this.request = request; this.target = request.otherDeviceId; this.accepted = request.initiatedByMe;
+  adopt(request, target = request.otherDeviceId) {
+    if (this.closed || !this.allowed(request, target)) return false;
+    this.detach(); this.request = request; this.target = target; this.accepted = request.initiatedByMe;
     request.on(VerificationRequestEvent.Change, this.onChange); this.update(); return true;
   }
   update() {
     if (this.closed || !this.request) return;
     const request = this.request;
-    if (!this.allowed(request) || request.otherDeviceId !== this.target) { this.sas = null; this.message = '设备身份改变，核对已停止。'; this.notify(); return; }
+    if (!this.allowed(request, this.target)) { this.sas = null; this.message = '设备身份改变，核对已停止。'; this.notify(); return; }
     if (request.phase === Phase.Cancelled) { this.sas = null; this.verified = false; this.message = '核对已取消或超时，设备未被本次核对确认。'; }
     else if (request.phase === Phase.Done) { this.sas = null; this.message = this.verified ? '此设备已通过本机 SAS 核对。' : '正在核对 SDK 的设备信任结果…'; }
     else if (request.phase === Phase.Requested) this.message = request.initiatedByMe ? '等待另一台设备接受请求。' : '请先核对下方设备 ID，再接受请求。';
@@ -51,7 +56,7 @@ export class DeviceVerification {
       Promise.resolve().then(() => verifier.verify()).then(async () => {
         const status = await this.crypto.getDeviceVerificationStatus(this.client.getUserId(), this.target);
         if (this.closed || this.request !== request || this.verifier !== verifier) return;
-        this.verified = request.phase === Phase.Done && this.confirmed && status?.localVerified === true;
+        this.verified = this.allowed(request, this.target) && request.phase === Phase.Done && this.confirmed && status?.localVerified === true;
         this.message = this.verified ? '此设备已通过本机 SAS 核对。' : '协议结束，但本机尚未确认设备信任；不要假定已验证。';
         this.sas = null; this.notify();
       }).catch(() => { if (!this.closed && this.request === request) { this.sas = null; this.verified = false; this.message = '核对未完成或已取消，请重新发起。'; this.notify(); } });
@@ -85,14 +90,14 @@ export class DeviceVerification {
       if (this.closed || epoch !== this.epoch) return;
       const request = await this.crypto.requestDeviceVerification(this.client.getUserId(), deviceId);
       if (this.closed || epoch !== this.epoch) { await request.cancel(); return; }
-      if (!this.allowed(request) || request.otherDeviceId !== deviceId) { await request.cancel(); throw new Error('服务器返回了不同的核对目标。'); }
-      this.adopt(request);
+      if (!this.allowed(request, deviceId)) { await request.cancel(); throw new Error('服务器返回了不同的核对目标。'); }
+      this.adopt(request, deviceId);
     });
   }
   async accept() {
     return this.operation(async () => {
       const request = this.request;
-      if (!request || request.initiatedByMe || request.phase !== Phase.Requested || !this.allowed(request)) throw new Error('没有可接受的核对请求。');
+      if (!request || request.initiatedByMe || request.phase !== Phase.Requested || !this.allowed(request, this.target)) throw new Error('没有可接受的核对请求。');
       this.accepted = true;
       try { await request.accept(); } catch (error) { this.accepted = false; throw error; }
       this.update();
@@ -101,7 +106,7 @@ export class DeviceVerification {
   async start() {
     return this.operation(async () => {
       const request = this.request;
-      if (!request || request.phase !== Phase.Ready || !request.otherPartySupportsMethod('m.sas.v1')) throw new Error('双方尚未准备好进行 SAS 核对。');
+      if (!request || !this.allowed(request, this.target) || request.phase !== Phase.Ready || !request.otherPartySupportsMethod('m.sas.v1')) throw new Error('双方尚未准备好进行 SAS 核对。');
       await request.startVerification('m.sas.v1'); this.update();
     });
   }

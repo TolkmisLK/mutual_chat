@@ -26,7 +26,9 @@ export function mountDeviceVerification(client) {
     try { await action(); }
     catch (error) { if (!disposed) $('state').textContent = error?.message === 'Not a known device'
       ? '加密引擎尚未取得目标设备密钥。请确认另一设备已联网同步，再重试；设备未被验证。'
-      : '核对操作未完成。请取消后重新核对，不要假定设备已验证。'; }
+      : ['请选择同一帐号的另一设备 ID。', '设备不在此帐号的当前列表中。', '服务器返回了不同的核对目标。', '请先取消当前核对。'].includes(error?.message)
+        ? error.message
+        : '核对操作未完成。请取消后重新核对，不要假定设备已验证。'; }
   }
   $('begin').onclick = () => perform(() => controller.begin($('device').value.trim()));
   $('accept').onclick = () => perform(() => controller.accept());
