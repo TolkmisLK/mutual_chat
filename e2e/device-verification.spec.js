@@ -40,6 +40,7 @@ test('two real RustCrypto devices require explicit SAS matching and reject a mis
     const headers = { Authorization: 'Bearer ' + aa.access_token };
     expect((await fetch(base + '/_matrix/client/v3/room_keys/version', { headers })).status).toBe(404);
     expect((await fetch(base + '/_matrix/client/v3/account/whoami', { headers })).status).toBe(200);
+    expect(await a.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await a.screenshot({ path: info.outputPath('device-sas-mobile.png'), fullPage: true });
   } finally { await first.close(); await second.close(); }
 });

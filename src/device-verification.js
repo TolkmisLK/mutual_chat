@@ -14,7 +14,7 @@ export class DeviceVerification {
   }
   allowed(request) {
     return request?.otherUserId === this.client.getUserId() && !request.roomId &&
-      typeof request.otherDeviceId === 'string' && request.otherDeviceId !== this.client.getDeviceId();
+      typeof request.otherDeviceId === 'string' && request.otherDeviceId.length > 0 && request.otherDeviceId.length <= 255 && request.otherDeviceId !== this.client.getDeviceId();
   }
   notify() { if (!this.closed) this.changed(this.snapshot()); }
   snapshot() {
