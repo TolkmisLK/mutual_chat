@@ -27,12 +27,12 @@ export class DeviceVerification {
     return { deviceId: request ? this.target : '', phase: request?.phase || 0,
       incoming: Boolean(request && !request.initiatedByMe), busy: this.busy,
       decimal: this.sas?.sas.decimal?.slice() || null, confirmed: this.confirmed,
-      verified: this.verified, message: this.message };
+      verified: this.verified, result: this.result || null, message: this.message };
   }
   detach() {
     this.request?.off(VerificationRequestEvent.Change, this.onChange);
     this.verifier?.off(VerifierEvent.ShowSas, this.onSas);
-    this.request = null; this.verifier = null; this.sas = null; this.confirmed = false; this.verified = false;
+    this.request = null; this.verifier = null; this.sas = null; this.confirmed = false; this.verified = false; this.result = null;
   }
   adopt(request, target = request.otherDeviceId) {
     if (this.closed || !this.allowed(request, target)) return false;
@@ -56,6 +56,7 @@ export class DeviceVerification {
       Promise.resolve().then(() => verifier.verify()).then(async () => {
         const status = await this.crypto.getDeviceVerificationStatus(this.client.getUserId(), this.target);
         if (this.closed || this.request !== request || this.verifier !== verifier) return;
+        this.result = { phase: request.phase, confirmed: this.confirmed, targetMatched: this.allowed(request, this.target), localVerified: status?.localVerified === true };
         this.verified = this.allowed(request, this.target) && request.phase === Phase.Done && this.confirmed && status?.localVerified === true;
         this.message = this.verified ? '此设备已通过本机 SAS 核对。' : '协议结束，但本机尚未确认设备信任；不要假定已验证。';
         this.sas = null; this.notify();

@@ -37,6 +37,7 @@ test('two real RustCrypto devices require explicit SAS matching and reject a mis
     await a.getByRole('button', { name: '三个数字全部相同', exact: true }).click();
     await expect(a.locator('#verification-state')).not.toContainText('已通过');
     await b.getByRole('button', { name: '三个数字全部相同', exact: true }).click();
+    await expect.poll(async () => JSON.parse(await a.locator('#verification-dialog').getAttribute('data-verification-result'))).toEqual({ phase: 6, confirmed: true, targetMatched: true, localVerified: true });
     await expect(a.locator('#verification-state')).toHaveText('此设备已通过本机 SAS 核对。');
     await expect(b.locator('#verification-state')).toHaveText('此设备已通过本机 SAS 核对。');
     // Verification must not silently create or replace a server key backup.

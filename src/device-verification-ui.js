@@ -13,6 +13,8 @@ export function mountDeviceVerification(client) {
     if (disposed) return;
     $('target').textContent = state.deviceId ? '核对目标设备：' + state.deviceId : '';
     $('state').textContent = state.message;
+    // Boolean/enum completion diagnostics only: never keys, tokens or errors.
+    dialog.dataset.verificationResult = JSON.stringify(state.result);
     $('begin').disabled = state.busy || (state.phase >= 2 && state.phase <= 4);
     $('device').disabled = $('begin').disabled;
     $('accept').hidden = !(state.incoming && state.phase === 2);
