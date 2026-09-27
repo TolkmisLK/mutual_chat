@@ -1,3 +1,21 @@
+# 独立桌面预览包
+
+桌面包使用固定 Electron 44.3.0 装载现有独立应用，与嵌入 ES 模块分开。当前没有签名安装器、自动更新、公共服务或移动端。渲染进程只加载打包来源；关闭 Node 集成，启用上下文隔离与 Chromium 沙箱，不通过 preload/IPC 暴露文件、命令或令牌接口。自定义协议只提供入口页与编译资源；远端导航、弹窗、WebView 和下载被拒绝。远程 Matrix 仍须可信 HTTPS，不提供跳过证书错误的开关。
+
+临时/记住会话逻辑与 Web 版相同；桌面资料位于 Electron 用户数据目录，和浏览器资料隔离，不自动导入。每份资料只允许一个进程。关闭窗口不会撤销服务器设备，需明确退出；删除资料可能失去未备份的历史密钥。
+
+Windows 构建者在 Node.js 22.12+ 环境执行：
+
+```sh
+npm ci --ignore-scripts
+npm run build
+node tool/build-desktop.js win32
+```
+
+产物是 `dist/desktop` 下的未签名 x64 完整目录，分发时保留整个目录与运行时许可证，不携带测试资料或凭据。Windows CI 做过实际打包窗口启动，Linux CI 用两个 Electron 进程完成本机 Synapse 加密互通与记住会话重启；这不证明消费者 Windows 的 Matrix 互通、真实远程 TLS、物理设备或安装更新流程。准确结果见 [VALIDATION.md](VALIDATION.md)。
+
+---
+
 # Independent desktop preview
 
 The desktop package embeds the existing standalone application with pinned Electron 44.3.0. It remains separate from the ES widget and Web distributions. Packaging and protocol-policy source alone do not establish native runtime acceptance; see VALIDATION.md for actual results. No signed installer, automatic update service, public homeserver or mobile client is included.

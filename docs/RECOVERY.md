@@ -1,3 +1,13 @@
+# 恢复已有远程历史密钥备份
+
+独立应用可从**已存在**的 Matrix 密钥备份恢复历史消息。登录且完成同步后打开“恢复密钥”，输入之前从可信 Matrix 客户端保存的恢复密钥，保持页面开启直到完成。它不是帐号密码，也不是本机解锁口令。记住会话时导入的密钥进入已加密的 SDK 数据库；临时登录只保留在内存。
+
+官方 SDK 校验恢复密钥格式、帐号密钥存储元数据、备份私钥与服务器公钥匹配，再导入已备份的房间密钥。本功能不会创建/重置备份、跨签名身份或设备信任；首次备份、联系人验证及自动备份状态界面仍未实现。错误密钥、缺少备份或网络失败会报告错误而不创建替代密钥。一次只运行一项恢复；失败前可能已部分导入有效密钥，重试不会回滚它们。大型备份可能耗时和占内存，目前没有长时任务的取消后续传界面。
+
+只能恢复原设备实际备份过的密钥；丢失恢复密钥、删除备份、服务器已删事件或从未备份的消息无法靠帐号密码找回。PR #5 的真实服务器浏览器场景验证了错误密钥拒绝、新设备恢复旧消息、备份版本不变及再次解锁；大型/部分备份与物理设备仍未验收。详见 [VALIDATION.md](VALIDATION.md) 与 [SESSION-SECURITY.md](SESSION-SECURITY.md)。
+
+---
+
 # Recover an existing remote history-key backup
 
 The standalone app can restore history keys from an **existing** Matrix secret-storage/key-backup setup. Use the recovery key you previously saved from a trusted Matrix client, not the account password or this browser's local unlock passphrase. Open **恢复密钥** after login and synchronization, enter the key, and keep the page open until completion. A remembered browser session stores imported keys in its encrypted SDK database; a temporary login keeps them only in memory.

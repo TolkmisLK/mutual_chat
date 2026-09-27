@@ -1,3 +1,13 @@
+# 私人已读状态与未读提示
+
+会话徽标显示的是 SDK/服务器通知规则下的**未读通知数**，不是所有未读消息的精确数量。静音、推送规则、加密解密状态和同步进度都会影响它；界面最多显示 `999+`。在加密房间，SDK 42.3 可能保留过期的非零总数：适配层仅在有服务器确认的整房间已读边界，且后续事件完整可解密并在当前时间线内时重新统计；缺少边界、密钥、推送动作、线程或超过 1000 个后续事件时沿用 SDK 数值，可能继续过期。它不修改宿主 SDK 计数。
+
+打开会话、滚动、解密历史或挂载面板都不会自动发送回执。用户点击“标为已读（仅自己）”时，针对当时已加载、已解密的最新接收消息发送整房间 `m.read.private`；请求过程中到来的新消息不会被自动包含。服务器及自己其他设备可见私人位置，其他成员原则上收不到；它对服务器不加密，也不会退回公开 `m.read`。线程专属已读未实现。
+
+SDK 可能先显示本地回显，所以徽标消失不代表服务器确认；失败时仍显示重试。面板卸载只移除适配层监听，不中止宿主 client 或已发请求。真实双用户 Synapse 场景核对了显式操作、失败重试、新消息边界、服务器计数和对方同步中无回执；详见 [VALIDATION.md](VALIDATION.md)。
+
+---
+
 # Private read state
 
 Room badges display **unread notifications**, not a complete count of all unread messages. Push rules, muted rooms, encryption/key availability and sync affect this value. The badge is capped visually at 999+; no independent local counter is persisted.
