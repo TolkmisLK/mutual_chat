@@ -1,3 +1,26 @@
+# PostgreSQL 本机部署与恢复演练
+
+这是**仅回环地址**的开发部署，不是公共服务。需 Docker Compose、Node.js 24 和足够磁盘空间；现有 SQLite 数据不会迁移。固定镜像为 Synapse 1.160.0 与 PostgreSQL 17.11。数据库为 UTF-8、`C` 排序规则，Synapse 使用非超级用户；PostgreSQL 不发布宿主端口，Matrix 客户端仅监听 `127.0.0.1`。Docker 桥接流量未做 TLS 加密。
+
+在仓库外准备已存在的私有父目录，再按顺序初始化、启动、备份、恢复到**全新**目录并停止：
+
+```sh
+node tool/postgres-server.js init /private/chat-pg 18018
+node tool/postgres-server.js up /private/chat-pg
+node tool/postgres-server.js snapshot /private/chat-pg /private/chat-backup-001
+node tool/postgres-server.js restore /private/chat-backup-001 /private/chat-restore-001 18019
+node tool/postgres-server.js stop /private/chat-restore-001
+node tool/postgres-server.js stop /private/chat-pg
+```
+
+初始化/恢复拒绝已存在的目标目录；`stop` 保留数据，不删除卷。命令通过独占实例锁避免并行操作；崩溃后可能留下锁，须先人工确认无操作或容器转换仍在进行，不能靠猜 PID 或强制删锁。备份先暂停 Synapse，转储 PostgreSQL，再复制配置、签名密钥和媒体，然后重启源服务，期间会停机；一次性加密密钥行按 Synapse 指南排除。恢复校验转储摘要与版本，只向空数据库执行事务性导入；恢复实例保留同一服务器身份，不可与源实例一起作为同一个公开服务器暴露。
+
+备份含数据库凭据、注册密钥、访问令牌和私有签名密钥，须限制目录权限并只恢复可信快照。SHA-256 只检测意外损坏，不提供防篡改认证；备份未加密也未做异地保存，不含浏览器持有的加密密钥。恢复前写入 `restore.pending`，只有 `pg_restore` 事务成功才移除；失败时禁止 `up` 和 `snapshot`，保留现场，重新恢复到新目录，**不要**删标记强行启动。该保护只覆盖协作命令，不覆盖手动 Docker 操作或硬件故障。
+
+可运行 `npx playwright test --config playwright.postgres.config.js` 进行隔离的真实 Chromium/Synapse/PostgreSQL 演练。PR #11 与 #13 的相关 CI 记录见 [VALIDATION.md](VALIDATION.md)。可信远端 TLS、受控帐号发放、异地加密备份、磁盘监控与独立安全审查仍需完成。
+
+---
+
 # PostgreSQL deployment and recovery rehearsal
 
 This is an isolated, **loopback-only development deployment**, not a publicly hosted service. Docker Compose, Node 24 and sufficient disk space are required. Existing SQLite data is not migrated. Never use the fixture account-registration secret on a public listener.

@@ -1,3 +1,29 @@
+# 隔离的本机 Matrix 服务
+
+此 Synapse 1.160.0 服务只用于开发和 CI，镜像锁定版本但未锁定摘要，不能当作公共部署。需 Docker Engine/Desktop（Compose v2）与 Node.js 24：
+
+```sh
+npm ci --ignore-scripts
+npm run server:local
+npm run server:local -- stop
+```
+
+辅助脚本只在配置不存在时建立私有 `deploy/local/data/`，不会覆盖现有配置或删除数据。服务仅在宿主 `127.0.0.1:18008` 监听；关闭公开注册与联邦目标，随机管理注册密钥存于私有配置，不打印或提交。SQLite、媒体与签名密钥持久化在该目录。此夹具服务器名固定为 `localhost`，不要把身份复用到公共环境；回环 HTTP 不等于可信远端 TLS。
+
+运行浏览器集成测试时先启动本机服务，再执行：
+
+```sh
+npm run build
+npx playwright install --with-deps chromium
+npm run test:browser
+```
+
+测试通过官方共享密钥注册 API 建立随机非管理员帐号，令牌仅留在进程内，不保留可能泄露凭据的网络 trace。测试会在夹具数据库留下帐号与房间用于检查，**不要**对无关服务器运行。它覆盖邀请、双向加密消息、重启与持久历史；不证明跨签名、设备丢失恢复或 TLS 部署。
+
+备份本机夹具前先停止服务，私密复制**整个**数据目录（SQLite、配置、媒体、签名密钥）；只恢复到独立空目录，不覆盖运行中的数据库。该目录包含敏感数据。生产还需 PostgreSQL、可信 TLS、受控发号、备份恢复、安全更新和监控；执行证据见 [VALIDATION.md](VALIDATION.md)。
+
+---
+
 # Isolated local Matrix server
 
 This fixture is for development/CI, not public hosting. It uses [Synapse v1.160.0](https://github.com/element-hq/synapse/releases/tag/v1.160.0), verified against the upstream release on 2026-09-14. The image is version-pinned, not digest-pinned; a future production deployment must record the resolved image digest and its security review.

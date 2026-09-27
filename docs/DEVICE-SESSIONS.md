@@ -1,3 +1,13 @@
+# 帐号设备会话管理
+
+独立 Web 与桌面应用可列出当前 Matrix 帐号的设备，并移除选中的**其他设备**登录。这是会话管理，不是设备密钥核对或跨签名；嵌入模块不接管宿主帐号。打开“设备会话”，按设备 ID 核对目标，明确确认后才发送移除请求；取消不发请求，当前设备请用正常退出流程。列表只展示设备 ID、显示名称和最后出现时间，不展示服务器提供的 IP；名称是普通文本，不证明设备归属。
+
+移除交给官方 SDK 与服务器。若服务器要求交互式重新认证，此界面只支持剩余阶段为 `m.login.password` 的流程，并把帐号、目标设备和挑战绑定到原操作；本地挑战五分钟过期，取消/刷新/卸载会清理。密码输入在提交前清空，不存入保险箱或日志，但无法保证 JavaScript 字符串和已发请求物理清零。其他认证阶段会拒绝并提示使用兼容客户端，不绕过认证。
+
+网络结果不明确时先刷新服务器设备列表再决定是否重试。服务器确认移除只撤销该设备令牌，不会远程擦除已下载副本、离线设备数据或已完成请求；未备份的本机历史密钥还可能因此丢失。此操作不删除房间历史、不重置备份、不旋转跨签名密钥。真实服务器 UIA、错误密码、旧令牌 401 等候选记录见 [VALIDATION.md](VALIDATION.md)。
+
+---
+
 # Account device sessions
 
 The standalone Web and desktop shell can list devices belonging to its authenticated Matrix account. This is session management, not SAS/device-key verification or cross-signing. The embedded module does not take ownership of the host's account or expose this shell operation.
