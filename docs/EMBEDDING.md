@@ -71,6 +71,8 @@ export function ChatPanel({ client }) {
 
 ## 运行完整宿主示例
 
+首次使用也可在安装依赖后直接运行 `npm run example:embed`，该命令会完成构建并启动下述预览。可选服务器地址模板、工程文件用途和移入宿主的步骤见[接入工程说明](../examples/embed-host/README.md)。
+
 在仓库根目录执行上述构建后：
 
 ```sh
