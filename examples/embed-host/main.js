@@ -1,8 +1,9 @@
 import { createClient } from 'matrix-js-sdk';
 import { ChatSession, mountChat } from '/widget/mutual-chat.js';
-import { validateHomeserver } from '../../packages/chat-core/session.js';
+import { prepareHost, connectionHint } from './setup.js';
 
 const $ = id => document.getElementById(id);
+$('server').value = import.meta.env.VITE_MATRIX_HOMESERVER || '';
 let client; let shared; let panel; let releaseLock; let hostSyncCount = 0;
 const observed = ['sync', 'Room.timeline', 'Room', 'Event.decrypted', 'Room.name', 'Room.myMembership'];
 const hostSync = () => { hostSyncCount++; diagnostics(); };
@@ -25,28 +26,31 @@ function cleanup() {
 }
 $('login').onsubmit = async event => {
   event.preventDefault(); $('connect').disabled = true; $('status').textContent = '正在连接…';
+  let stage = 'setup';
   try {
-    if (!navigator.locks) throw new Error('Web Locks required');
-    const baseUrl = validateHomeserver($('server').value);
+    const baseUrl = prepareHost($('server').value, { secureContext: window.isSecureContext, locks: navigator.locks });
     await new Promise((resolve, reject) => {
       navigator.locks.request('mutual-chat-embed-host', { ifAvailable: true }, async lock => {
-        if (!lock) { reject(new Error('Another host window is open')); return; }
+        if (!lock) { reject(Object.assign(new Error(), { setupCode: 'window-busy' })); return; }
         const held = new Promise(done => { releaseLock = done; }); resolve(); await held;
       }).catch(reject);
     });
+    stage = 'login';
     const loginClient = createClient({ baseUrl }); let auth;
     try { auth = await loginClient.loginWithPassword($('user').value, $('password').value); }
     finally { $('password').value = ''; loginClient.stopClient(); }
     client = createClient({ baseUrl, userId: auth.user_id, deviceId: auth.device_id, accessToken: auth.access_token });
+    stage = 'crypto';
     await client.initRustCrypto({ cryptoDatabasePrefix: `mutual-embed:${auth.user_id}:${auth.device_id}` });
     shared = new ChatSession(client); client.on('sync', hostSync);
+    stage = 'sync';
     await client.startClient({ initialSyncLimit: 30 });
     $('login-panel').hidden = true; $('workspace').hidden = false; $('logout').hidden = false; $('status').textContent = '';
     diagnostics();
-  } catch {
+  } catch (error) {
     // Revoke the newly created server session if initialization failed after login.
     let revoked = true; if (client) { try { await client.logout(); } catch { revoked = false; } }
-    cleanup(); $('status').textContent = revoked ? '连接失败，请检查登录信息、网络或其他已打开的示例窗口。' : '初始化失败且服务器未确认撤销登录，请在帐号的设备管理中移除本次设备。';
+    cleanup(); $('status').textContent = revoked ? connectionHint(error, stage) : '初始化失败且服务器未确认撤销登录，请在帐号的设备管理中移除本次设备。';
   } finally { $('password').value = ''; $('connect').disabled = false; }
 };
 $('overview').onclick = detach;
