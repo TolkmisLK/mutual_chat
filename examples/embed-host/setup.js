@@ -18,6 +18,6 @@ export function connectionHint(error, stage) {
   if (hints[error?.setupCode]) return hints[error.setupCode];
   if (stage === 'login' && (error?.errcode === 'M_FORBIDDEN' || error?.httpStatus === 401)) return '登录被拒绝，请核对服务器、用户 ID 和密码；帐号须支持密码登录。';
   if (stage === 'login' && (error?.errcode === 'M_LIMIT_EXCEEDED' || error?.httpStatus === 429)) return '服务器暂时限制登录，请稍后重试。';
-  if (stage === 'crypto') return '加密存储初始化失败，请检查浏览器存储权限和可用空间，再重试。';
+  if (stage === 'crypto') return '加密组件或存储初始化失败，请检查 WASM 资源加载、浏览器存储权限和可用空间，再重试。';
   return '连接未完成，请检查服务器是否可访问、证书是否可信及跨来源设置，再重试。';
 }
