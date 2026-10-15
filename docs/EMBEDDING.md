@@ -45,6 +45,8 @@ client.stopClient();
 
 `ChatSession.ready` 在 SDK 同步状态达到 `PREPARED` 或 `SYNCING` 时才为真。宿主可以在 `startClient` 前挂载，此时界面显示等待同步，不能发送；应等待同步就绪并处理连接失败。不要只因 `startClient()` 调用返回便假定历史和加密密钥均可用。真实登录/恢复逻辑、Web Lock、失败后清理及服务器确认退出，请参照示例代码与 [本机会话安全说明](SESSION-SECURITY.md)。示例登录采用内存令牌、每次登录新设备，没有设备核对或密钥恢复界面，不能当作生产会话管理方案。
 
+界面区分首次连接、同步错误、重新连接、停止和恢复完成；这些状态来自 SDK 的 `sync` 事件，不依赖 `navigator.onLine`。发送失败且 SDK 本地回显进入 `not_sent` 后，消息显示「重试发送」。`ChatSession.retryMessage(roomId, eventId)` 只接受当前帐号在已加入会话中的失败回显，并调用 SDK `resendEvent` 复用原事件与事务；同一事件的并发重试合并为一个请求。宿主不应另行把相同正文作为新消息发送，否则可能产生不同事务和重复消息。
+
 ## 两种所有权与宿主框架
 
 `mountChat(container, { session: shared })` 适合多个页面或面板共享宿主创建的 `ChatSession`。`unmount()` 只撤销本面板订阅与 DOM；最终不再使用时由宿主调用 `shared.dispose()`。`mountChat(container, { client })` 会为该面板创建自己的适配层，返回的 `panel.session` 由面板管理；卸载会释放它的 SDK 监听，但**不会**停止、注销或销毁宿主的 client。不要为同一个加密数据库再创建第二个 SDK client。两种方式都返回 `{ session, unmount }`，重复调用 `unmount()` 是安全的。
@@ -87,6 +89,7 @@ npx vite preview --config vite.embed.config.js --host 127.0.0.1 --port 14174 --s
 | --- | --- |
 | 空白界面或资源 404 | 检查宿主 SDK/WASM 及相关资源的部署路径和浏览器控制台；完整示例按站点根路径部署。 |
 | 一直显示正在同步 | 检查宿主是否初始化 RustCrypto、启动 client 同步，以及服务器、令牌和网络状态。 |
+| 消息显示「发送失败」 | 恢复连接后使用该消息上的「重试发送」；它复用原 SDK 事务。不要再次提交保留的相同草稿。 |
 | 切页后消息/草稿状态变化 | 已提交请求仍由 SDK 处理；未发送草稿与选中会话在卸载时清除。 |
 | 重复消息或监听增加 | 检查每次路由卸载是否调用对应 `panel.unmount()`，共享 session 是否只创建一次。 |
 | 加密存储冲突 | 检查是否有多个 SDK client 同时写相同数据库，及宿主是否持有跨窗口独占权。 |
@@ -141,6 +144,10 @@ Serve the complete host output at its own origin root; do not copy only `index.h
 ## Navigation behavior and validation
 
 An already-submitted send remains owned by the SDK after unmount. Reopening the panel reads its result from the existing session. An unsent composer draft and the selected room currently belong to the panel and are reset by unmount; a host needing durable drafts should keep them in its own state until a draft API is added.
+
+The panel reports SDK sync interruption, reconnection, stopped, and restored states without using browser online heuristics. When an owned local echo reaches `not_sent`, the message exposes **Retry send**. `ChatSession.retryMessage(roomId, eventId)` accepts only the current user's failed echo in a joined room, coalesces concurrent actions for that event, and delegates to the SDK's `resendEvent` so the original local echo and transaction are reused. Hosts should not submit the retained body as a new message, which would create a different transaction and can duplicate an ambiguously completed send. A successful retry clears only an unchanged matching panel draft; newer edits and drafts in another room remain intact.
+
+Unmounting suppresses late panel updates and removes adapter listeners. It does not cancel an SDK request already started, stop the client, log out, or change credential ownership. With a shared `ChatSession`, the host disposes the adapter only at final teardown; with a panel-owned adapter, `unmount()` disposes that adapter while leaving the host client alive.
 
 CI exercises the built module against real Synapse: repeated mounts in both ownership modes, an encrypted request held while navigating away, one delivered event after reopening, unchanged device/login, listener counts returning to baseline, and explicit host logout invalidating the token. A separate controlled-session browser case exercises stale controls and late promises after unmount. These cases passed in [PR #3 CI](https://github.com/TolkmisLK/mutual_chat/actions/runs/34811896034); evidence and remaining gates are recorded in VALIDATION.md.
 

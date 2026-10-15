@@ -2,14 +2,23 @@
 export class ChatSession {
   constructor(client) {
     this.client = client; this.listeners = new Set(); this.ready = false; this.closed = false;
-    this.history = new Map(); this.reading = new Map(); this.redacting = new Map();
+    this.history = new Map(); this.reading = new Map(); this.redacting = new Map(); this.retrying = new Map();
     this.changed = () => { for (const fn of this.listeners) fn(); };
-    this.sync = state => { this.ready = ['PREPARED', 'SYNCING'].includes(state); this.changed(); };
-    this.bindings = [['sync', this.sync], ['Room.timeline', this.changed], ['Room.redaction', this.changed], ['Room.redactionCancelled', this.changed], ['Room', this.changed], ['Event.decrypted', this.changed], ['Room.name', this.changed], ['Room.myMembership', this.changed], ['Room.UnreadNotifications', this.changed], ['Room.receipt', this.changed]];
+    this.syncState = client.getSyncState?.() || null;
+    this.sync = state => { this.syncState = state; this.ready = ['PREPARED', 'SYNCING'].includes(state); this.changed(); };
+    this.bindings = [['sync', this.sync], ['Room.timeline', this.changed], ['Room.localEchoUpdated', this.changed], ['Room.redaction', this.changed], ['Room.redactionCancelled', this.changed], ['Room', this.changed], ['Event.decrypted', this.changed], ['Room.name', this.changed], ['Room.myMembership', this.changed], ['Room.UnreadNotifications', this.changed], ['Room.receipt', this.changed]];
     for (const [event, fn] of this.bindings) client.on(event, fn);
-    this.ready = ['PREPARED', 'SYNCING'].includes(client.getSyncState?.());
+    this.ready = ['PREPARED', 'SYNCING'].includes(this.syncState);
   }
   subscribe(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
+  connectionState() {
+    if (this.closed) return 'closed';
+    if (this.ready) return 'ready';
+    if (this.syncState === 'ERROR') return 'error';
+    if (this.syncState === 'RECONNECTING') return 'reconnecting';
+    if (this.syncState === 'STOPPED') return 'stopped';
+    return 'connecting';
+  }
   rooms() {
     return this.client.getRooms().filter(r => ['join', 'invite'].includes(r.getMyMembership())).map(r => {
       const count = this.unreadCount(r);
@@ -74,6 +83,7 @@ export class ChatSession {
     return this.messageEvents(room).slice(-(this.history.get(roomId)?.limit || 200)).map(e => ({
       id: e.getId(), sender: e.getSender(), mine: e.getSender() === this.client.getUserId(),
       canRedact: this.canRedact(e), redacting: this.redacting.has(roomId + '\0' + e.getId()),
+      canRetry: this.canRetry(e), retrying: this.retrying.has(e),
       searchable: !e.isRedacted() && !e.isDecryptionFailure?.() && e.getType() === 'm.room.message' && ['m.text', 'm.notice', 'm.emote'].includes(e.getContent().msgtype) && typeof e.getContent().body === 'string',
       text: e.isRedacted() ? '[消息已删除]' : (e.isDecryptionFailure?.() || e.getType() === 'm.room.encrypted') ? '[等待解密或缺少密钥]' : typeof e.getContent().body === 'string' ? e.getContent().body : '[暂不支持的消息]',
       time: e.getTs(), status: e.status || 'sent',
@@ -89,6 +99,23 @@ export class ChatSession {
   }
   canRedact(event) {
     return !this.closed && !event.isRedacted() && !event.status && event.getId()?.startsWith('$') && event.getSender() === this.client.getUserId();
+  }
+  canRetry(event) {
+    return !this.closed && event.status === 'not_sent' && event.getSender() === this.client.getUserId();
+  }
+  retryMessage(roomId, eventId) {
+    if (this.closed || !this.ready) return Promise.reject(new Error('请等待聊天重新连接后重试。'));
+    const room = this.client.getRoom(roomId);
+    const event = room?.getMyMembership() === 'join' ? this.messageEvents(room).find(e => e.getId() === eventId) : null;
+    if (!event || !this.canRetry(event)) return Promise.reject(new Error('只能重试自己发送失败的消息。'));
+    const pending = this.retrying.get(event); if (pending) return pending;
+    const request = Promise.resolve().then(() => {
+      if (this.closed) return;
+      // Reuse the SDK-owned local echo and transaction. Creating a new text
+      // event here could duplicate a request whose response was ambiguous.
+      return this.client.resendEvent(event, room);
+    }).finally(() => { this.retrying.delete(event); if (!this.closed) this.changed(); });
+    this.retrying.set(event, request); this.changed(); return request;
   }
   redact(roomId, eventId) {
     if (this.closed || !this.ready) return Promise.reject(new Error('连接尚未就绪。'));
@@ -164,7 +191,7 @@ export class ChatSession {
     return this.client.joinRoom(roomId);
   }
   dispose() {
-    if (this.closed) return; this.closed = true; this.ready = false; this.history.clear(); this.reading.clear(); this.redacting.clear();
+    if (this.closed) return; this.closed = true; this.ready = false; this.history.clear(); this.reading.clear(); this.redacting.clear(); this.retrying.clear();
     for (const [event, fn] of this.bindings) this.client.removeListener(event, fn);
     this.listeners.clear();
     // Ownership remains with the host: unmounting an embedded panel never logs it out.

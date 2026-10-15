@@ -42,7 +42,15 @@ export function mountChat(container, { client, session: providedSession }) {
   q('style').textContent += '.create-dialog{width:min(500px,92vw);border:1px solid #bfd2df;border-radius:14px;padding:24px;color:inherit;background:#f7fafc}.create-dialog::backdrop{background:#14212d99}.create-dialog form{display:block;padding:0;border:0}.create-dialog label{display:block;margin:12px 0}.create-dialog input{display:block;width:100%;padding:10px;font:inherit;margin-top:6px}.create-dialog button{margin-right:8px}.create-error{color:#9b3028}';
   q('style').textContent += '@media(prefers-color-scheme:dark){.create-dialog,.create-dialog input{background:#1d2e3d;color:#e1ebf2}.create-error{color:#ffabab}}';
   const status = text => { if (!stopped) q('.status').textContent = text; };
-  q('style').textContent += '.message .redact{display:block;margin-top:8px;padding:3px 8px;font-size:12px;background:transparent;color:inherit}';
+  q('style').textContent += '.message .redact,.message .retry{display:inline-block;margin:8px 8px 0 0;padding:3px 8px;font-size:12px;background:transparent;color:inherit}';
+  const messageStatus = value => ({ encrypting: '正在加密', sending: '正在发送', queued: '等待发送', not_sent: '发送失败', cancelled: '已取消' }[value] || value);
+  const connectionStatus = () => ({
+    error: '连接已中断，发送已暂停；客户端会继续尝试恢复。',
+    reconnecting: '正在重新连接并同步消息，发送已暂停…',
+    stopped: '聊天连接已停止，发送已暂停。',
+    closed: '聊天会话已关闭。',
+    connecting: '正在连接并同步消息…',
+  }[session.connectionState?.()] || '正在连接并同步消息…');
   function render() {
     if (stopped) return; const rooms = session.rooms(); q('.rooms').replaceChildren();
     for (const room of rooms) {
@@ -80,8 +88,26 @@ export function mountChat(container, { client, session: providedSession }) {
       if (message.id) bubble.dataset.eventId = message.id;
       if (searchHits.includes(message.id)) bubble.classList.add('search-match');
       if (message.id === searchHit) { bubble.classList.add('search-current'); bubble.setAttribute('aria-current', 'true'); }
-      const sender = document.createElement('span'); sender.className = 'sender'; sender.textContent = `${message.sender} · ${new Date(message.time).toLocaleTimeString()}${message.status === 'sent' ? '' : ` · ${message.status}`}`;
+      const sender = document.createElement('span'); sender.className = 'sender'; sender.textContent = `${message.sender} · ${new Date(message.time).toLocaleTimeString()}${message.status === 'sent' ? '' : ` · ${messageStatus(message.status)}`}`;
       const body = document.createElement('span'); body.textContent = message.text; bubble.append(sender, body);
+      if (message.canRetry) {
+        const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'retry'; retry.textContent = message.retrying ? '正在重试…' : '重试发送';
+        retry.disabled = !session.ready || message.retrying; const target = current.id; const eventId = message.id; const failedText = message.text;
+        retry.onclick = async () => {
+          if (stopped || !session.ready || message.retrying) return;
+          const retryDraft = drafts.get(target); const clearMatchingDraft = retryDraft?.text === failedText;
+          if (selected === target) status('正在重试原消息，不会创建新的发送事务…');
+          try {
+            await session.retryMessage(target, eventId);
+            if (!stopped && clearMatchingDraft && drafts.get(target) === retryDraft) {
+              drafts.delete(target);
+              if (selected === target) q('textarea').value = '';
+            }
+            if (selected === target) status('消息已由服务器确认发送。');
+          } catch { if (selected === target) status('重试仍未获服务器确认；请检查消息状态和连接后再试。'); }
+          finally { render(); }
+        }; bubble.append(retry);
+      }
       if (message.canRedact) {
         const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'redact'; remove.textContent = message.redacting ? '撤回中…' : '撤回';
         remove.disabled = !session.ready || message.redacting; const target = current.id; const eventId = message.id;
@@ -108,8 +134,8 @@ export function mountChat(container, { client, session: providedSession }) {
     q('.history-state').textContent = history?.loading ? '正在加载更早消息…' : history?.capped ? '当前最多显示最近 1000 条消息。' : history && !history.canLoad ? '已到当前可访问历史的开头。' : '';
     q('form button').disabled = sending || !current || !session.ready;
     q('.create').disabled = !session.ready;
-    if (!session.ready) status('正在连接并同步消息…');
-    else if (!wasReady) status('');
+    if (!session.ready) status(connectionStatus());
+    else if (!wasReady) status('已重新连接并同步消息。');
     wasReady = session.ready;
   }
   q('section > form').onsubmit = async e => {
@@ -125,7 +151,7 @@ export function mountChat(container, { client, session: providedSession }) {
       }
       if (selected === target) status('');
     }
-    catch (error) { if (selected === target) status(error.message?.startsWith('请') || error.message?.startsWith('消息') ? error.message : '发送未确认，请先检查会话中的发送状态，避免重复发送。'); }
+    catch (error) { if (selected === target) status(error.message?.startsWith('请') || error.message?.startsWith('消息') ? error.message : '发送未确认；若消息标为“发送失败”，请使用该消息上的“重试发送”，不要再次提交草稿。'); }
     finally { sending = false; render(); }
   };
   q('.earlier').onclick = async () => {
