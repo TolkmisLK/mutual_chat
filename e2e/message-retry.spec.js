@@ -79,7 +79,7 @@ test('a failed encrypted send retries its original transaction exactly once', as
     await login(alice, aliceId); await login(bob, bobId); const roomName = '发送重试 ' + suffix;
     await alice.getByRole('button', { name: '新建会话', exact: true }).click(); await alice.getByLabel('会话名称', { exact: true }).fill(roomName); await alice.getByLabel('邀请用户 ID', { exact: true }).fill(bobId);
     await alice.getByRole('button', { name: '创建加密会话', exact: true }).click(); const invite = bob.getByRole('button', { name: '邀请 · ' + roomName, exact: true });
-    await expect(invite).toBeVisible(); bob.once('dialog', dialog => dialog.accept()); await invite.click(); await expect(bob.locator('header')).toContainText(roomName);
+    await expect(invite).toBeVisible(); bob.once('dialog', dialog => dialog.accept()); await invite.click(); await expect(bob.locator('header').filter({ hasText: roomName })).toContainText('端到端加密会话');
     const requests = []; let blocked = false;
     alice.on('request', request => { if (/\/send\/m\.room\.encrypted\//.test(request.url())) requests.push(new URL(request.url()).pathname); });
     await alice.route('**/send/m.room.encrypted/**', async route => { if (!blocked) { blocked = true; await route.abort('failed'); } else await route.continue(); });
