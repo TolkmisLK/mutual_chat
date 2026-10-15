@@ -89,7 +89,8 @@ jobs:
           node tool/preview-release-guard.js web "$web"
           cp LICENSE "$web/LICENSE"
           cp .github/web-preview-README.md "$web/README.md"
-          (cd "$web" && zip -qr "$assets/$base-web-embed.zip" app embed-host widget LICENSE README.md)
+          cp docs/EMBEDDING.md "$web/EMBEDDING.md"
+          (cd "$web" && zip -qr "$assets/$base-web-embed.zip" app embed-host widget LICENSE README.md EMBEDDING.md)
           unzip -tq "$assets/$base-web-embed.zip" >/dev/null
           (cd "$assets" && sha256sum "$base-web-embed.zip" > "$base-web-embed.zip.sha256")
           node tool/preview-release-guard.js checksum "$assets/$base-web-embed.zip" "$assets/$base-web-embed.zip.sha256"
