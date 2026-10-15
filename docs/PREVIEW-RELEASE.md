@@ -2,7 +2,9 @@
 
 ## 中文
 
-预览版发布后，可在 [GitHub Releases](https://github.com/TolkmisLK/mutual_chat/releases) 下载固定版本的四个文件：Windows x64 ZIP、对应 `.sha256`、Web/嵌入 ZIP、对应 `.sha256`。提交或 CI 构建成功本身不会自动产生 Release；维护者还须在当前 `main` 提交的 CI 全部通过后创建符合 `v0.1.0-preview.N` 格式的标签。发布工作流只接受该标签与当前 `main` 指向同一提交、且这一提交有唯一一条成功的 `main` push CI；它只取该运行中的两个指定产物。标签早于 CI 完成、`main` 已前进、选中了 PR/旧提交或产物过期时会失败，不应通过改用另一条运行绕过。
+当前公开版本是 [v0.1.0-preview.1](https://github.com/TolkmisLK/mutual_chat/releases/tag/v0.1.0-preview.1)，固定在提交 `ee188da657bc69f398e4a9da7f9b5fdea8f139b8`。同一发布页提供四个文件：[Windows x64 ZIP](https://github.com/TolkmisLK/mutual_chat/releases/download/v0.1.0-preview.1/mutual-chat-0.1.0-preview-windows-x64.zip) 与 [`.sha256`](https://github.com/TolkmisLK/mutual_chat/releases/download/v0.1.0-preview.1/mutual-chat-0.1.0-preview-windows-x64.zip.sha256)，以及 [Web/嵌入 ZIP](https://github.com/TolkmisLK/mutual_chat/releases/download/v0.1.0-preview.1/mutual-chat-0.1.0-preview-web-embed.zip) 与 [`.sha256`](https://github.com/TolkmisLK/mutual_chat/releases/download/v0.1.0-preview.1/mutual-chat-0.1.0-preview-web-embed.zip.sha256)。此版本的应用 CI、PostgreSQL 恢复 CI 和发布工作流已在该提交通过；这不等于目标环境验收。
+
+后续预览版仍须由维护者在当前 `main` 的 CI 全部通过后创建 `v0.1.0-preview.N` 标签。发布工作流只接受该标签与当前 `main` 指向同一提交、且这一提交有唯一一条成功的 `main` push CI；它只取该运行中的两个指定产物。标签早于 CI 完成、`main` 已前进、选中了 PR/旧提交或产物过期时会失败，不应通过改用另一条运行绕过。
 
 下载后先在 PowerShell 执行 `Get-FileHash .\文件名.zip -Algorithm SHA256`，与相应 `.sha256` 中的值逐字比对。Windows ZIP 解压**整个** `MutualChat-win32-x64` 目录后运行 `MutualChat.exe`；该目录不是安装器，也不会自动更新。Web/嵌入 ZIP 包含 `app/` 独立站点、`widget/` ES 模块、`embed-host/` 示例、双语 `README.md`、嵌入接口说明 `EMBEDDING.md` 和 `LICENSE`；部署完整站点时保留其 `assets/`。只拿 `widget/mutual-chat.js` 的宿主还须按 [嵌入指南](EMBEDDING.md) 自行提供 SDK、RustCrypto WASM、登录、同步及凭据管理。
 
@@ -10,7 +12,9 @@
 
 ## English
 
-After a preview is published, [GitHub Releases](https://github.com/TolkmisLK/mutual_chat/releases) provides four fixed assets: a Windows x64 ZIP and `.sha256`, and a Web/embedded ZIP and `.sha256`. A commit or successful CI run alone does not publish a Release. The maintainer must tag the current `main` commit after its CI passes, using `v0.1.0-preview.N`. The publishing workflow requires the tag to resolve to the current `main` HEAD and exactly one successful `main` push CI run for that SHA; it downloads only the two named artifacts from that run. It fails if CI is unfinished, `main` moved, a PR or older run is selected, or an artifact expired.
+The published version is [v0.1.0-preview.1](https://github.com/TolkmisLK/mutual_chat/releases/tag/v0.1.0-preview.1), fixed at commit `ee188da657bc69f398e4a9da7f9b5fdea8f139b8`. Its four assets are the [Windows x64 ZIP](https://github.com/TolkmisLK/mutual_chat/releases/download/v0.1.0-preview.1/mutual-chat-0.1.0-preview-windows-x64.zip) and [`.sha256`](https://github.com/TolkmisLK/mutual_chat/releases/download/v0.1.0-preview.1/mutual-chat-0.1.0-preview-windows-x64.zip.sha256), plus the [Web/embedded ZIP](https://github.com/TolkmisLK/mutual_chat/releases/download/v0.1.0-preview.1/mutual-chat-0.1.0-preview-web-embed.zip) and [`.sha256`](https://github.com/TolkmisLK/mutual_chat/releases/download/v0.1.0-preview.1/mutual-chat-0.1.0-preview-web-embed.zip.sha256). Application CI, PostgreSQL recovery CI, and the publishing workflow passed for this commit; this does not establish target-environment acceptance.
+
+For later previews, the maintainer must tag the current `main` commit after its CI passes, using `v0.1.0-preview.N`. The publishing workflow requires the tag to resolve to the current `main` HEAD and exactly one successful `main` push CI run for that SHA; it downloads only the two named artifacts from that run. It fails if CI is unfinished, `main` moved, a PR or older run is selected, or an artifact expired.
 
 Compare each ZIP with its matching `.sha256` before extraction (`sha256sum -c file.zip.sha256` on a Unix shell). Extract the entire `MutualChat-win32-x64` directory from the Windows ZIP, then run `MutualChat.exe`. It is not an installer and has no auto-update. The Web/embedded ZIP contains the standalone `app/`, ES module `widget/`, sample `embed-host/`, bilingual `README.md`, API guide `EMBEDDING.md`, and `LICENSE`; keep each deployed site's `assets/`. A host copying only `widget/mutual-chat.js` must supply the SDK, RustCrypto WASM, login, sync, and credential lifecycle as described in the [embedding guide](EMBEDDING.md).
 
