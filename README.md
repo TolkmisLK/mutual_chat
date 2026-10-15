@@ -28,6 +28,8 @@ npm run build
 
 Windows 构建者还可运行 `node tool/build-desktop.js win32` 生成独立 Electron x64 目录。CI 的 `mutual-chat-windows-desktop` 产物包含 ZIP、SHA-256 与真实窗口验收报告。必须完整解压目录后运行 `MutualChat.exe`，不是只复制 EXE；此包未签名，无自动更新。桌面与浏览器登录数据各自隔离，详见 [DESKTOP.md](docs/DESKTOP.md)。
 
+预览版发布后可从 [GitHub Releases](https://github.com/TolkmisLK/mutual_chat/releases) 直接下载 Windows ZIP 和 Web/嵌入 ZIP；具体校验、使用步骤及尚未通过的验收见[预览版下载说明](docs/PREVIEW-RELEASE.md)。发布须由维护者在当前 `main` 的 CI 全部通过后创建精确标签；普通构建不会自动变成 Release。
+
 ## 嵌入其他应用
 
 宿主创建并管理自己的 Matrix SDK client，初始化 Rust Crypto，并开始同步：
