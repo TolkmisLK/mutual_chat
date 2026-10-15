@@ -28,7 +28,7 @@ npm run build
 
 Windows 构建者还可运行 `node tool/build-desktop.js win32` 生成独立 Electron x64 目录。CI 的 `mutual-chat-windows-desktop` 产物包含 ZIP、SHA-256 与真实窗口验收报告。必须完整解压目录后运行 `MutualChat.exe`，不是只复制 EXE；此包未签名，无自动更新。桌面与浏览器登录数据各自隔离，详见 [DESKTOP.md](docs/DESKTOP.md)。
 
-当前公开版本是 [v0.1.0-preview.1](https://github.com/TolkmisLK/mutual_chat/releases/tag/v0.1.0-preview.1)：下载 [Windows x64 ZIP](https://github.com/TolkmisLK/mutual_chat/releases/download/v0.1.0-preview.1/mutual-chat-0.1.0-preview-windows-x64.zip) 或 [Web/嵌入 ZIP](https://github.com/TolkmisLK/mutual_chat/releases/download/v0.1.0-preview.1/mutual-chat-0.1.0-preview-web-embed.zip)，并从同一发布页获取各自的 `.sha256` 校验文件。解压、托管步骤和未通过的验收见[预览版下载说明](docs/PREVIEW-RELEASE.md)。此版本固定在提交 `ee188da657bc69f398e4a9da7f9b5fdea8f139b8`；之后的 `main` 改动不会自动进入该 ZIP。
+当前公开版本是 [v0.1.0-preview.2](https://github.com/TolkmisLK/mutual_chat/releases/tag/v0.1.0-preview.2)：下载 [Windows x64 ZIP](https://github.com/TolkmisLK/mutual_chat/releases/download/v0.1.0-preview.2/mutual-chat-0.1.0-preview-windows-x64.zip) 或 [Web/嵌入 ZIP](https://github.com/TolkmisLK/mutual_chat/releases/download/v0.1.0-preview.2/mutual-chat-0.1.0-preview-web-embed.zip)，并从同一发布页获取各自的 `.sha256` 校验文件。解压、托管步骤和尚未完成的验收见[预览版下载说明](docs/PREVIEW-RELEASE.md)。此版本固定在提交 `783eeb2a509b8e6d5b3b846e391b520b5892d150`；相比 preview.1，仅修正 Web ZIP 随包指南的跨文件链接，应用功能源码没有变化。之后的 `main` 改动不会自动进入该 ZIP。
 
 ## 嵌入其他应用
 

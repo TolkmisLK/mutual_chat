@@ -14,7 +14,7 @@ node tool/build-desktop.js win32
 
 产物是 `dist/desktop` 下的未签名 x64 完整目录，分发时保留整个目录与运行时许可证，不携带测试资料或凭据。Windows CI 做过实际打包窗口启动，Linux CI 用两个 Electron 进程完成本机 Synapse 加密互通与记住会话重启；这不证明消费者 Windows 的 Matrix 互通、真实远程 TLS、物理设备或安装更新流程。准确结果见 [VALIDATION.md](VALIDATION.md)。
 
-当前公开的 [v0.1.0-preview.1](https://github.com/TolkmisLK/mutual_chat/releases/tag/v0.1.0-preview.1) 提供 [Windows x64 ZIP](https://github.com/TolkmisLK/mutual_chat/releases/download/v0.1.0-preview.1/mutual-chat-0.1.0-preview-windows-x64.zip) 和同页 `.sha256`。先校验 ZIP，再解压整个 `MutualChat-win32-x64` 目录；版本及验收边界见[预览版下载说明](PREVIEW-RELEASE.md)。
+当前公开的 [v0.1.0-preview.2](https://github.com/TolkmisLK/mutual_chat/releases/tag/v0.1.0-preview.2) 提供 [Windows x64 ZIP](https://github.com/TolkmisLK/mutual_chat/releases/download/v0.1.0-preview.2/mutual-chat-0.1.0-preview-windows-x64.zip) 和同页 `.sha256`。先校验 ZIP，再解压整个 `MutualChat-win32-x64` 目录；版本及验收边界见[预览版下载说明](PREVIEW-RELEASE.md)。此版仅修正 Web 包随附指南的链接，桌面应用功能源码相对 preview.1 没有变化。
 
 ---
 
@@ -28,7 +28,7 @@ Temporary and remembered sessions use the same application logic as the Web vers
 
 Build with Node 22.12+ and the lockfile: `npm ci --ignore-scripts`, `npm run build`, then `node tool/build-desktop.js win32` on the Windows builder. The packager downloads the pinned official Electron runtime and creates an unsigned x64 directory under dist/desktop. Keep the entire resulting directory and the runtime's license files. Do not distribute test profiles or credentials.
 
-The published [v0.1.0-preview.1](https://github.com/TolkmisLK/mutual_chat/releases/tag/v0.1.0-preview.1) includes a [Windows x64 ZIP](https://github.com/TolkmisLK/mutual_chat/releases/download/v0.1.0-preview.1/mutual-chat-0.1.0-preview-windows-x64.zip) and its `.sha256` file on the same page. Check the ZIP, then extract the entire `MutualChat-win32-x64` directory. See [preview download instructions](PREVIEW-RELEASE.md) for version and acceptance scope.
+The published [v0.1.0-preview.2](https://github.com/TolkmisLK/mutual_chat/releases/tag/v0.1.0-preview.2) includes a [Windows x64 ZIP](https://github.com/TolkmisLK/mutual_chat/releases/download/v0.1.0-preview.2/mutual-chat-0.1.0-preview-windows-x64.zip) and its `.sha256` file on the same page. Check the ZIP, then extract the entire `MutualChat-win32-x64` directory. See [preview download instructions](PREVIEW-RELEASE.md) for version and acceptance scope. This release only fixes links in the Web package's guide; the desktop application source is unchanged from preview.1.
 
 The room-creation form uses an application dialog instead of browser prompt(), which Electron does not support. Existing Web/embedded tests must continue to pass with this shared change. Physical Windows installation, trusted TLS against an operator's actual service, signing, update policy and native lifecycle acceptance remain release gates.
 
