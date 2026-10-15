@@ -14,6 +14,8 @@ node tool/build-desktop.js win32
 
 产物是 `dist/desktop` 下的未签名 x64 完整目录，分发时保留整个目录与运行时许可证，不携带测试资料或凭据。Windows CI 做过实际打包窗口启动，Linux CI 用两个 Electron 进程完成本机 Synapse 加密互通与记住会话重启；这不证明消费者 Windows 的 Matrix 互通、真实远程 TLS、物理设备或安装更新流程。准确结果见 [VALIDATION.md](VALIDATION.md)。
 
+维护者创建并通过发布门禁的预览标签可在 [GitHub Releases](https://github.com/TolkmisLK/mutual_chat/releases) 提供固定 Windows ZIP 与校验和；下载和版本边界见[预览版下载说明](PREVIEW-RELEASE.md)。
+
 ---
 
 # Independent desktop preview
@@ -25,6 +27,8 @@ The renderer loads only the packaged app origin. Node integration is disabled, c
 Temporary and remembered sessions use the same application logic as the Web version. Remembered credentials and SDK database keys use the user's local passphrase; profile data lives under Electron's user-data directory, outside the application bundle. Browser and desktop profiles are separate and are not silently imported. One process per profile is permitted. Closing the desktop quits its process; it does not revoke the server device. Use explicit logout to request revocation. Deleting a profile may lose unbacked-up history keys.
 
 Build with Node 22.12+ and the lockfile: `npm ci --ignore-scripts`, `npm run build`, then `node tool/build-desktop.js win32` on the Windows builder. The packager downloads the pinned official Electron runtime and creates an unsigned x64 directory under dist/desktop. Keep the entire resulting directory and the runtime's license files. Do not distribute test profiles or credentials.
+
+After the maintainer tags a verified preview, its fixed Windows ZIP and checksum are available on [GitHub Releases](https://github.com/TolkmisLK/mutual_chat/releases). See [preview download instructions](PREVIEW-RELEASE.md) for verification and scope.
 
 The room-creation form uses an application dialog instead of browser prompt(), which Electron does not support. Existing Web/embedded tests must continue to pass with this shared change. Physical Windows installation, trusted TLS against an operator's actual service, signing, update policy and native lifecycle acceptance remain release gates.
 

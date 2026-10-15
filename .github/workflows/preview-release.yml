@@ -1,0 +1,116 @@
+name: Publish verified preview assets
+on:
+  push:
+    tags:
+      - 'v*-preview.*'
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: preview-release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.repository == 'TolkmisLK/mutual_chat'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Require an unchanged tag on current main
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="$GITHUB_REF_NAME"
+          [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-preview\.[1-9][0-9]*$ ]]
+          sha=$(git rev-parse HEAD)
+          test "$(git rev-parse "refs/tags/$tag^{commit}")" = "$sha"
+          main_sha=$(git ls-remote origin refs/heads/main | cut -f1)
+          test "$sha" = "$main_sha"
+          refs=$(git ls-remote origin "refs/tags/$tag" "refs/tags/$tag^{}")
+          tag_sha=$(printf '%s\n' "$refs" | awk -v ref="refs/tags/$tag^{}" '$2 == ref { print $1 }')
+          if [[ -z "$tag_sha" ]]; then tag_sha=$(printf '%s\n' "$refs" | awk -v ref="refs/tags/$tag" '$2 == ref { print $1 }'); fi
+          test "$tag_sha" = "$sha"
+          version=$(node -p "require('./package.json').version")
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Select only the successful main-push CI for this SHA
+        id: ci
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          SHA: ${{ steps.source.outputs.sha }}
+          VERSION: ${{ steps.source.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/preview-metadata"
+          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml" > "$RUNNER_TEMP/preview-metadata/workflow.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$SHA&branch=main&event=push&per_page=100" > "$RUNNER_TEMP/preview-metadata/runs.json"
+          run_id=$(node tool/preview-release-guard.js select "$VERSION" "$TAG" "$SHA" "$GITHUB_REPOSITORY" "$RUNNER_TEMP/preview-metadata/workflow.json" "$RUNNER_TEMP/preview-metadata/runs.json")
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?per_page=100" > "$RUNNER_TEMP/preview-metadata/jobs.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/artifacts?per_page=100" > "$RUNNER_TEMP/preview-metadata/artifacts.json"
+          node tool/preview-release-guard.js evidence "$run_id" "$RUNNER_TEMP/preview-metadata/jobs.json" "$RUNNER_TEMP/preview-metadata/artifacts.json"
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+      - name: Download only the two allowlisted CI artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ steps.ci.outputs.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/preview/windows" "$RUNNER_TEMP/preview/web" "$RUNNER_TEMP/preview/assets"
+          gh run download "$RUN_ID" -R "$GITHUB_REPOSITORY" -n mutual-chat-windows-desktop -D "$RUNNER_TEMP/preview/windows"
+          gh run download "$RUN_ID" -R "$GITHUB_REPOSITORY" -n mutual-chat-web-and-widget -D "$RUNNER_TEMP/preview/web"
+      - name: Verify payloads and assemble the Web/embedded archive
+        env:
+          VERSION: ${{ steps.source.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          windows="$RUNNER_TEMP/preview/windows"
+          web="$RUNNER_TEMP/preview/web"
+          assets="$RUNNER_TEMP/preview/assets"
+          base="mutual-chat-$VERSION-preview"
+          test -f "$windows/$base-windows-x64.zip"
+          test -f "$windows/$base-windows-x64.zip.sha256"
+          test "$(find "$windows" -maxdepth 1 -type f -printf '%f\n' | sort)" = "$(printf '%s\n' "$base-windows-x64.zip" "$base-windows-x64.zip.sha256" | sort)"
+          node tool/preview-release-guard.js checksum "$windows/$base-windows-x64.zip" "$windows/$base-windows-x64.zip.sha256"
+          unzip -tq "$windows/$base-windows-x64.zip" >/dev/null
+          node tool/preview-release-guard.js windows "$windows/$base-windows-x64.zip"
+          node tool/preview-release-guard.js web "$web"
+          (cd "$web" && zip -qr "$assets/$base-web-embed.zip" app embed-host widget)
+          unzip -tq "$assets/$base-web-embed.zip" >/dev/null
+          (cd "$assets" && sha256sum "$base-web-embed.zip" > "$base-web-embed.zip.sha256")
+          node tool/preview-release-guard.js checksum "$assets/$base-web-embed.zip" "$assets/$base-web-embed.zip.sha256"
+          cp "$windows/$base-windows-x64.zip" "$windows/$base-windows-x64.zip.sha256" "$assets/"
+          test "$(find "$assets" -maxdepth 1 -type f | wc -l)" -eq 4
+      - name: Create and publish the preview release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          SHA: ${{ steps.source.outputs.sha }}
+          RUN_ID: ${{ steps.ci.outputs.run_id }}
+          VERSION: ${{ steps.source.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Refuse to publish if main or the tag moved while artifacts were checked.
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$SHA"
+          refs=$(git ls-remote origin "refs/tags/$TAG" "refs/tags/$TAG^{}")
+          tag_sha=$(printf '%s\n' "$refs" | awk -v ref="refs/tags/$TAG^{}" '$2 == ref { print $1 }')
+          if [[ -z "$tag_sha" ]]; then tag_sha=$(printf '%s\n' "$refs" | awk -v ref="refs/tags/$TAG" '$2 == ref { print $1 }'); fi
+          test "$tag_sha" = "$SHA"
+          if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then echo 'Release already exists; refusing to replace it' >&2; exit 1; fi
+          assets="$RUNNER_TEMP/preview/assets"
+          base="mutual-chat-$VERSION-preview"
+          cp .github/preview-release-notes.md "$RUNNER_TEMP/preview/notes.md"
+          printf '\nSource commit: `%s` · CI run: https://github.com/%s/actions/runs/%s\n' "$SHA" "$GITHUB_REPOSITORY" "$RUN_ID" >> "$RUNNER_TEMP/preview/notes.md"
+          gh release create "$TAG" "$assets/$base-windows-x64.zip" "$assets/$base-windows-x64.zip.sha256" "$assets/$base-web-embed.zip" "$assets/$base-web-embed.zip.sha256" -R "$GITHUB_REPOSITORY" --verify-tag --draft --prerelease --latest=false --title "Mutual Chat $TAG 预览版 / Preview" --notes-file "$RUNNER_TEMP/preview/notes.md"
+          gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json isDraft,assets --jq '.isDraft and (.assets | length == 4)' | grep -qx true
+          gh release edit "$TAG" -R "$GITHUB_REPOSITORY" --draft=false --prerelease --latest=false
