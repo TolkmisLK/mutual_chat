@@ -13,7 +13,7 @@ npm run build
 
 构建脚本依次生成三个产物：`dist/app/` 是独立 Web 应用，`dist/widget/mutual-chat.js` 是 ES 模块，`dist/embed-host/` 是完整宿主示例。模块只公开 `mountChat` 和 `ChatSession`；`validateHomeserver` 是示例从源码引用的辅助函数，**不是**模块公开 API。widget 模块本身不创建 Matrix SDK client，可单独拷入已有 SDK 构建与资源的宿主；宿主须自行打包/部署其 `matrix-js-sdk`、RustCrypto WASM 及其他所需资源，并验证浏览器加载路径。部署完整的 `dist/app/` 或 `dist/embed-host/` 时则须保留各自产物的 `assets/`，只复制其 `index.html` 或入口 JS 会缺资源。`dist/embed-host/` 示例按站点根路径构建；不要假定它可直接放在任意子路径。
 
-维护者通过预览发布门禁后，这三个目录也会作为单独的 Web/嵌入 ZIP 出现在 [GitHub Releases](https://github.com/TolkmisLK/mutual_chat/releases)。下载校验和预览限制见[预览版说明](PREVIEW-RELEASE.md)；ZIP 不替宿主完成 SDK 或服务器部署。
+当前公开的 [v0.1.0-preview.1](https://github.com/TolkmisLK/mutual_chat/releases/tag/v0.1.0-preview.1) 提供 [Web/嵌入 ZIP](https://github.com/TolkmisLK/mutual_chat/releases/download/v0.1.0-preview.1/mutual-chat-0.1.0-preview-web-embed.zip) 和同页 `.sha256`，包含这三个目录及双语使用说明、接口文档和许可证。下载校验和预览限制见[预览版说明](PREVIEW-RELEASE.md)；ZIP 不替宿主完成 SDK 或服务器部署。
 
 远程 Matrix 服务应使用可信 HTTPS；示例运行还需要 HTTPS 或 localhost，供浏览器密码学与 Web Locks 使用。嵌入页面所在来源、CSP、静态资源路径和 Matrix 服务的跨来源访问策略都须由宿主部署时核对，模块不会替宿主配置这些条件。
 
