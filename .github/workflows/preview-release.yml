@@ -4,7 +4,7 @@ on:
     tags:
       - 'v*-preview.*'
 permissions:
-  contents: write
+  contents: read
   actions: read
 concurrency:
   group: preview-release-${{ github.ref }}
@@ -12,6 +12,9 @@ concurrency:
 jobs:
   publish:
     if: github.repository == 'TolkmisLK/mutual_chat'
+    permissions:
+      contents: write
+      actions: read
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -84,7 +87,9 @@ jobs:
           unzip -tq "$windows/$base-windows-x64.zip" >/dev/null
           node tool/preview-release-guard.js windows "$windows/$base-windows-x64.zip"
           node tool/preview-release-guard.js web "$web"
-          (cd "$web" && zip -qr "$assets/$base-web-embed.zip" app embed-host widget)
+          cp LICENSE "$web/LICENSE"
+          cp .github/web-preview-README.md "$web/README.md"
+          (cd "$web" && zip -qr "$assets/$base-web-embed.zip" app embed-host widget LICENSE README.md)
           unzip -tq "$assets/$base-web-embed.zip" >/dev/null
           (cd "$assets" && sha256sum "$base-web-embed.zip" > "$base-web-embed.zip.sha256")
           node tool/preview-release-guard.js checksum "$assets/$base-web-embed.zip" "$assets/$base-web-embed.zip.sha256"
@@ -111,6 +116,6 @@ jobs:
           base="mutual-chat-$VERSION-preview"
           cp .github/preview-release-notes.md "$RUNNER_TEMP/preview/notes.md"
           printf '\nSource commit: `%s` · CI run: https://github.com/%s/actions/runs/%s\n' "$SHA" "$GITHUB_REPOSITORY" "$RUN_ID" >> "$RUNNER_TEMP/preview/notes.md"
-          gh release create "$TAG" "$assets/$base-windows-x64.zip" "$assets/$base-windows-x64.zip.sha256" "$assets/$base-web-embed.zip" "$assets/$base-web-embed.zip.sha256" -R "$GITHUB_REPOSITORY" --verify-tag --draft --prerelease --latest=false --title "Mutual Chat $TAG 预览版 / Preview" --notes-file "$RUNNER_TEMP/preview/notes.md"
+          gh release create "$TAG" "$assets/$base-windows-x64.zip" "$assets/$base-windows-x64.zip.sha256" "$assets/$base-web-embed.zip" "$assets/$base-web-embed.zip.sha256" -R "$GITHUB_REPOSITORY" --verify-tag --target "$SHA" --draft --prerelease --latest=false --title "Mutual Chat $TAG 预览版 / Preview" --notes-file "$RUNNER_TEMP/preview/notes.md"
           gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json isDraft,assets --jq '.isDraft and (.assets | length == 4)' | grep -qx true
           gh release edit "$TAG" -R "$GITHUB_REPOSITORY" --draft=false --prerelease --latest=false
