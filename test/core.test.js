@@ -22,6 +22,28 @@ test('sending requires sync, membership, valid text and initialized crypto', asy
   client.getCrypto = () => null; await assert.rejects(session.sendText(room.roomId, 'hi')); assert.equal(sent.length, 0);
   client.getCrypto = () => ({}); await session.sendText(room.roomId, '<script>literal text</script>'); assert.equal(sent[0][1], '<script>literal text</script>');
 });
+test('failed local echoes retry through the original SDK event and coalesce duplicate actions', async () => {
+  const { client, room, session } = fake(); let calls = 0; let finish;
+  const event = { status: 'not_sent', getType: () => 'm.room.message', getId: () => '~local:txn', getTxnId: () => 'txn', getSender: () => client.getUserId(), isRedacted: () => false, getContent: () => ({ msgtype: 'm.text', body: 'retry me' }), getTs: () => 1 };
+  room.getLiveTimeline = () => ({ getEvents: () => [event] });
+  client.resendEvent = async (target, targetRoom) => { calls++; assert.equal(target, event); assert.equal(targetRoom, room); await new Promise(resolve => { finish = resolve; }); event.status = null; };
+  assert.equal(session.messages(room.roomId)[0].canRetry, true);
+  const first = session.retryMessage(room.roomId, event.getId()); const second = session.retryMessage(room.roomId, event.getId());
+  assert.equal(first, second); await Promise.resolve(); assert.equal(calls, 1); assert.equal(session.messages(room.roomId)[0].retrying, true);
+  finish(); await first; assert.equal(session.messages(room.roomId)[0].canRetry, false);
+  await assert.rejects(session.retryMessage(room.roomId, event.getId()), /发送失败/);
+});
+test('retry waits for reconnection and adapter disposal never starts or stops host work', async () => {
+  const { client, room, session } = fake(); let calls = 0; let finish;
+  const event = { status: 'not_sent', getType: () => 'm.room.message', getId: () => '~local:txn', getSender: () => client.getUserId(), isRedacted: () => false, getContent: () => ({ msgtype: 'm.text', body: 'retry me' }), getTs: () => 1 };
+  room.getLiveTimeline = () => ({ getEvents: () => [event] });
+  client.resendEvent = async () => { calls++; await new Promise(resolve => { finish = resolve; }); };
+  client.emit('sync', 'ERROR'); assert.equal(session.connectionState(), 'error'); await assert.rejects(session.retryMessage(room.roomId, event.getId()), /重新连接/);
+  client.emit('sync', 'RECONNECTING'); assert.equal(session.connectionState(), 'reconnecting'); client.emit('sync', 'SYNCING');
+  const pending = session.retryMessage(room.roomId, event.getId()); await Promise.resolve(); assert.equal(calls, 1);
+  session.dispose(); assert.equal(session.connectionState(), 'closed'); finish(); await pending;
+  await assert.rejects(session.retryMessage(room.roomId, event.getId()), /重新连接/); assert.equal(calls, 1); assert.equal(client.getSyncState(), 'PREPARED');
+});
 test('new rooms are private and request standard Matrix encryption', async () => {
   const { session, created } = fake(); await session.createRoom('Team', ['@friend:example.org']);
   assert.equal(created[0].visibility, 'private'); assert.equal(created[0].initial_state[0].content.algorithm, 'm.megolm.v1.aes-sha2');
